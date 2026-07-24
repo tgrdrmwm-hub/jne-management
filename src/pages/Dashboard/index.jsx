@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { 
   Package, 
   Truck, 
@@ -10,7 +11,8 @@ import {
   Activity
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
-import { mockDashboardData, chartDataPengantaran } from '../../data/mockData';
+import { dashboardService } from '../../services/dashboardService';
+import { chartDataPengantaran } from '../../data/mockData';
 import { motion } from 'framer-motion';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
@@ -46,6 +48,33 @@ const StatCard = ({ title, value, icon: Icon, gradient, trend, trendValue, delay
 );
 
 const Dashboard = () => {
+  const [stats, setStats] = useState({
+    totalDiantar: 0,
+    totalDiambil: 0,
+    karyawanHadir: 0,
+    totalPoin: 0,
+    aktivitas: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await dashboardService.getStats();
+        setStats(data);
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64 text-gray-500">Memuat dashboard...</div>;
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -68,7 +97,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard 
           title="Paket Diantar" 
-          value={mockDashboardData.totalDiantar} 
+          value={stats.totalDiantar} 
           icon={Truck} 
           gradient="bg-gradient-to-br from-blue-500 to-blue-700"
           trend="up"
@@ -77,7 +106,7 @@ const Dashboard = () => {
         />
         <StatCard 
           title="Paket Diambil" 
-          value={mockDashboardData.totalDiambil} 
+          value={stats.totalDiambil} 
           icon={Package} 
           gradient="bg-gradient-to-br from-red-500 to-rose-600"
           trend="up"
@@ -86,7 +115,7 @@ const Dashboard = () => {
         />
         <StatCard 
           title="Karyawan Hadir" 
-          value={mockDashboardData.karyawanHadir} 
+          value={stats.karyawanHadir} 
           icon={UserCheck} 
           gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
           trend="up"
@@ -95,7 +124,7 @@ const Dashboard = () => {
         />
         <StatCard 
           title="Total Poin" 
-          value={mockDashboardData.totalPoin} 
+          value={stats.totalPoin} 
           icon={Award} 
           gradient="bg-gradient-to-br from-amber-400 to-orange-500"
           trend="up"
@@ -163,7 +192,7 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <div className="space-y-5 mt-2">
-              {mockDashboardData.aktivitas.map((act, index) => (
+              {stats.aktivitas.map((act, index) => (
                 <motion.div 
                   key={act.id} 
                   initial={{ opacity: 0, x: -10 }}
@@ -173,14 +202,14 @@ const Dashboard = () => {
                 >
                   <div className="flex flex-col items-center shrink-0">
                     <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 ring-4 ring-blue-50 z-10 group-hover:ring-blue-100 transition-all" />
-                    {index < mockDashboardData.aktivitas.length - 1 && (
+                    {index < stats.aktivitas.length - 1 && (
                       <div className="w-px flex-1 bg-gradient-to-b from-blue-200 to-transparent mt-1" />
                     )}
                   </div>
                   <div className="pb-6">
                     <p className="text-sm font-medium text-gray-800 leading-snug mb-1.5">{act.text}</p>
                     <p className="text-xs text-gray-400 flex items-center gap-1.5 font-medium">
-                      <Clock size={11} /> {act.time}
+                      {act.time && <Clock size={11} />} {act.time}
                     </p>
                   </div>
                 </motion.div>

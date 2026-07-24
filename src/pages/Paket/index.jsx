@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td, TableHeader } from '../../components/ui/Table';
 import { Button } from '../../components/ui/Button';
-import { mockPaketData } from '../../data/mockData';
-import { Plus, Download, FileText, Edit, Trash2, Package as PackageIcon, Eye } from 'lucide-react';
+import { paketService } from '../../services/paketService';
+import { Plus, Download, FileText, Edit, Trash2, Package, Eye } from 'lucide-react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -14,7 +14,7 @@ import { Input, Select } from '../../components/ui/Input';
 
 const StatusBadge = ({ status }) => {
   const styles = {
-    'Diambil': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'Diambil': 'bg-blue-50 text-blue-700 border-blue-200',
     'Pending': 'bg-amber-50 text-amber-700 border-amber-200',
   };
   return (
@@ -25,15 +25,33 @@ const StatusBadge = ({ status }) => {
 };
 
 const Paket = () => {
-  const [data, setData] = useState(mockPaketData);
+  const [data, setData] = useState([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState(null);
-  const [formData, setFormData] = useState({ id: null, resi: '', pengambil: '', lokasi: '', jumlah: '', status: '', catatan: '' });
+  const [formData, setFormData] = useState({ id: null, resi: '', pengambil: '', lokasi: '', jumlah: '', status: 'Pending', catatan: '' });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const result = await paketService.getAll();
+      setData(result);
+    } catch (error) {
+      console.error('Error fetching paket:', error);
+      Swal.fire({ title: 'Error', text: 'Gagal mengambil data', icon: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const filteredData = data.filter(item => 
-    item.resi.toLowerCase().includes(search.toLowerCase()) || 
-    item.pengambil.toLowerCase().includes(search.toLowerCase())
+    item.resi?.toLowerCase().includes(search.toLowerCase()) || 
+    item.pengambil?.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleExportPDF = () => {
@@ -47,7 +65,7 @@ const Paket = () => {
       body: filteredData.map(item => [item.resi, item.pengambil, item.lokasi, item.jumlah, item.tanggal, item.jam, item.status]),
       startY: 28,
       styles: { fontSize: 9 },
-      headStyles: { fillColor: [227, 30, 36] },
+      headStyles: { fillColor: [227, 30, 36] }, // Red header
     });
     doc.save("Laporan_Paket.pdf");
   };
@@ -59,8 +77,8 @@ const Paket = () => {
     XLSX.writeFile(workbook, "Laporan_Paket.xlsx");
   };
 
-  const handleDelete = (id) => {
-    Swal.fire({
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
       title: 'Hapus data?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
       icon: 'warning',
@@ -68,36 +86,41 @@ const Paket = () => {
       confirmButtonColor: '#e31e24',
       confirmButtonText: 'Ya, hapus!',
       customClass: { popup: 'rounded-2xl' }
-    }).then((result) => {
-      if (result.isConfirmed) {
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await paketService.delete(id);
         setData(data.filter(d => d.id !== id));
         Swal.fire({ title: 'Terhapus!', text: 'Data berhasil dihapus.', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      } catch (error) {
+        Swal.fire({ title: 'Error', text: 'Gagal menghapus data', icon: 'error' });
       }
-    });
+    }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (formData.id) {
-      setData(data.map(d => d.id === formData.id ? { ...d, ...formData } : d));
-      Swal.fire({ title: 'Berhasil', text: 'Data berhasil diubah', icon: 'success', customClass: { popup: 'rounded-2xl' } });
-    } else {
-      const newData = {
-        ...formData,
-        id: Date.now(),
-        tanggal: new Date().toISOString().split('T')[0],
-        jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-        catatan: formData.catatan || '-'
-      };
-      setData([newData, ...data]);
-      Swal.fire({ title: 'Berhasil', text: 'Data berhasil ditambahkan', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+    try {
+      if (formData.id) {
+        const updated = await paketService.update(formData.id, formData);
+        setData(data.map(d => d.id === formData.id ? updated : d));
+        Swal.fire({ title: 'Berhasil', text: 'Data berhasil diubah', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      } else {
+        const added = await paketService.create(formData);
+        setData([added, ...data]);
+        Swal.fire({ title: 'Berhasil', text: 'Data berhasil ditambahkan', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      Swal.fire({ title: 'Error', text: 'Gagal menyimpan data', icon: 'error' });
     }
-    setIsModalOpen(false);
   };
 
   const openModal = (item = null) => {
     if (item) setFormData(item);
-    else setFormData({ id: null, resi: '', pengambil: '', lokasi: '', jumlah: '', status: '', catatan: '' });
+    else setFormData({ id: null, resi: '', pengambil: '', lokasi: '', jumlah: '', status: 'Pending', catatan: '' });
     setIsModalOpen(true);
   };
 
@@ -107,11 +130,11 @@ const Paket = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="p-2 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-lg shadow-red-500/20">
-              <PackageIcon size={20} className="text-white" />
+              <Package size={20} className="text-white" />
             </div>
             <h1 className="text-2xl font-extrabold text-gray-900">Pengambilan Paket</h1>
           </div>
-          <p className="text-gray-500 text-sm ml-12">Kelola data pengambilan paket dari gudang atau hub</p>
+          <p className="text-gray-500 text-sm ml-12">Kelola data paket yang diambil oleh kurir/pelanggan</p>
         </div>
       </motion.div>
 
@@ -135,17 +158,19 @@ const Paket = () => {
               <Tr>
                 <Th>No. Resi</Th>
                 <Th>Pengambil</Th>
-                <Th>Lokasi Ambil</Th>
+                <Th>Lokasi Pengambilan</Th>
                 <Th>Waktu</Th>
                 <Th>Status</Th>
                 <Th className="text-right">Aksi</Th>
               </Tr>
             </Thead>
             <Tbody>
-              {filteredData.length === 0 ? (
+              {loading ? (
+                <Tr><Td colSpan={6} className="text-center py-12 text-gray-400">Memuat data...</Td></Tr>
+              ) : filteredData.length === 0 ? (
                 <Tr><Td colSpan={6} className="text-center py-12 text-gray-400 text-base">
                   <div className="flex flex-col items-center gap-2">
-                    <PackageIcon size={40} className="text-gray-300" />
+                    <Package size={40} className="text-gray-300" />
                     <p className="font-semibold">Tidak ada data ditemukan</p>
                   </div>
                 </Td></Tr>
@@ -155,9 +180,9 @@ const Paket = () => {
                     <Td className="font-mono font-bold text-[var(--color-jne-red)]">{item.resi}</Td>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs">{item.pengambil.charAt(0)}</div>
+                        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs">{item.pengambil?.charAt(0) || '-'}</div>
                         <div>
-                          <div className="font-semibold text-gray-900">{item.pengambil}</div>
+                          <div className="font-semibold text-gray-900">{item.pengambil || '-'}</div>
                           <div className="text-xs text-gray-400">{item.jumlah} Paket</div>
                         </div>
                       </div>
@@ -183,6 +208,7 @@ const Paket = () => {
         </Card>
       </motion.div>
 
+      {/* Detail Modal */}
       <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="Detail Pengambilan">
         {detailModal && (
           <div className="space-y-4">
@@ -198,18 +224,23 @@ const Paket = () => {
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
                 <span className="text-sm text-gray-500 font-medium">{label}</span>
-                <span className="text-sm font-semibold text-gray-900">{value}</span>
+                <span className="text-sm font-semibold text-gray-900">{value || '-'}</span>
               </div>
             ))}
           </div>
         )}
       </Modal>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={formData.id ? "Edit Pengambilan" : "Tambah Pengambilan"}>
+      {/* Form Modal */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={formData.id ? "Edit Data Pengambilan" : "Tambah Data Pengambilan"}
+      >
         <form onSubmit={handleSave} className="space-y-4">
           <Input label="Nomor Resi" value={formData.resi} onChange={e => setFormData({...formData, resi: e.target.value})} required />
           <Input label="Nama Pengambil" value={formData.pengambil} onChange={e => setFormData({...formData, pengambil: e.target.value})} required />
-          <Input label="Lokasi" value={formData.lokasi} onChange={e => setFormData({...formData, lokasi: e.target.value})} required />
+          <Input label="Lokasi Pengambilan" value={formData.lokasi} onChange={e => setFormData({...formData, lokasi: e.target.value})} required />
           <Input type="number" label="Jumlah Paket" value={formData.jumlah} onChange={e => setFormData({...formData, jumlah: e.target.value})} required />
           <Select label="Status" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} options={['Pending', 'Diambil']} required />
           <Input label="Catatan" value={formData.catatan} onChange={e => setFormData({...formData, catatan: e.target.value})} />

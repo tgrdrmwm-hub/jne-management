@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td, TableHeader } from '../../components/ui/Table';
 import { Button } from '../../components/ui/Button';
-import { mockGudangData } from '../../data/mockData';
+import { gudangService } from '../../services/gudangService';
 import { Plus, Download, FileText, Edit, Trash2, Truck, Eye } from 'lucide-react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
@@ -25,15 +25,33 @@ const StatusBadge = ({ status }) => {
 };
 
 const Gudang = () => {
-  const [data, setData] = useState(mockGudangData);
+  const [data, setData] = useState([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState(null);
-  const [formData, setFormData] = useState({ id: null, resi: '', kurir: '', gudang: '', jumlah: '', status: '', catatan: '' });
+  const [formData, setFormData] = useState({ id: null, resi: '', kurir: '', gudang: '', jumlah: '', status: 'Proses', catatan: '' });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const result = await gudangService.getAll();
+      setData(result);
+    } catch (error) {
+      console.error('Error fetching gudang:', error);
+      Swal.fire({ title: 'Error', text: 'Gagal mengambil data', icon: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const filteredData = data.filter(item => 
-    item.resi.toLowerCase().includes(search.toLowerCase()) || 
-    item.kurir.toLowerCase().includes(search.toLowerCase())
+    item.resi?.toLowerCase().includes(search.toLowerCase()) || 
+    item.kurir?.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleExportPDF = () => {
@@ -59,8 +77,8 @@ const Gudang = () => {
     XLSX.writeFile(workbook, "Laporan_Gudang.xlsx");
   };
 
-  const handleDelete = (id) => {
-    Swal.fire({
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
       title: 'Hapus data?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
       icon: 'warning',
@@ -68,36 +86,41 @@ const Gudang = () => {
       confirmButtonColor: '#e31e24',
       confirmButtonText: 'Ya, hapus!',
       customClass: { popup: 'rounded-2xl' }
-    }).then((result) => {
-      if (result.isConfirmed) {
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await gudangService.delete(id);
         setData(data.filter(d => d.id !== id));
         Swal.fire({ title: 'Terhapus!', text: 'Data berhasil dihapus.', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      } catch (error) {
+        Swal.fire({ title: 'Error', text: 'Gagal menghapus data', icon: 'error' });
       }
-    });
+    }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (formData.id) {
-      setData(data.map(d => d.id === formData.id ? { ...d, ...formData } : d));
-      Swal.fire({ title: 'Berhasil', text: 'Data berhasil diubah', icon: 'success', customClass: { popup: 'rounded-2xl' } });
-    } else {
-      const newData = {
-        ...formData,
-        id: Date.now(),
-        tanggal: new Date().toISOString().split('T')[0],
-        jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-        catatan: formData.catatan || '-'
-      };
-      setData([newData, ...data]);
-      Swal.fire({ title: 'Berhasil', text: 'Data berhasil ditambahkan', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+    try {
+      if (formData.id) {
+        const updated = await gudangService.update(formData.id, formData);
+        setData(data.map(d => d.id === formData.id ? updated : d));
+        Swal.fire({ title: 'Berhasil', text: 'Data berhasil diubah', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      } else {
+        const added = await gudangService.create(formData);
+        setData([added, ...data]);
+        Swal.fire({ title: 'Berhasil', text: 'Data berhasil ditambahkan', icon: 'success', customClass: { popup: 'rounded-2xl' } });
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      Swal.fire({ title: 'Error', text: 'Gagal menyimpan data', icon: 'error' });
     }
-    setIsModalOpen(false);
   };
 
   const openModal = (item = null) => {
     if (item) setFormData(item);
-    else setFormData({ id: null, resi: '', kurir: '', gudang: '', jumlah: '', status: '', catatan: '' });
+    else setFormData({ id: null, resi: '', kurir: '', gudang: '', jumlah: '', status: 'Proses', catatan: '' });
     setIsModalOpen(true);
   };
 
@@ -142,7 +165,9 @@ const Gudang = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredData.length === 0 ? (
+              {loading ? (
+                <Tr><Td colSpan={6} className="text-center py-12 text-gray-400">Memuat data...</Td></Tr>
+              ) : filteredData.length === 0 ? (
                 <Tr><Td colSpan={6} className="text-center py-12 text-gray-400 text-base">
                   <div className="flex flex-col items-center gap-2">
                     <Truck size={40} className="text-gray-300" />
@@ -155,9 +180,9 @@ const Gudang = () => {
                     <Td className="font-mono font-bold text-[var(--color-jne-blue)]">{item.resi}</Td>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">{item.kurir.charAt(0)}</div>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">{item.kurir?.charAt(0) || '-'}</div>
                         <div>
-                          <div className="font-semibold text-gray-900">{item.kurir}</div>
+                          <div className="font-semibold text-gray-900">{item.kurir || '-'}</div>
                           <div className="text-xs text-gray-400">{item.jumlah} Paket</div>
                         </div>
                       </div>
@@ -199,7 +224,7 @@ const Gudang = () => {
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
                 <span className="text-sm text-gray-500 font-medium">{label}</span>
-                <span className="text-sm font-semibold text-gray-900">{value}</span>
+                <span className="text-sm font-semibold text-gray-900">{value || '-'}</span>
               </div>
             ))}
           </div>

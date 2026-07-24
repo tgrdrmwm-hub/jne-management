@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td, TableHeader } from '../../components/ui/Table';
-import { mockPoinData } from '../../data/mockData';
+import { poinService } from '../../services/poinService';
 import { Award, Trophy, Medal, Star, TrendingUp, TrendingDown } from 'lucide-react';
 import { motion } from 'framer-motion';
+import Swal from 'sweetalert2';
 
 const Poin = () => {
-  const [data] = useState(mockPoinData);
+  const [data, setData] = useState([]);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const result = await poinService.getAll();
+      setData(result);
+    } catch (error) {
+      console.error('Error fetching poin:', error);
+      Swal.fire({ title: 'Error', text: 'Gagal mengambil data poin', icon: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const filteredData = data.filter(item => 
-    item.nama.toLowerCase().includes(search.toLowerCase())
+    item.nama?.toLowerCase().includes(search.toLowerCase())
   );
 
   const getRankIcon = (rank) => {
@@ -28,11 +47,11 @@ const Poin = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="p-2 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
-              <Star size={20} className="text-white" />
+              <Award size={20} className="text-white" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Poin & Peringkat</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900">Poin & Reward</h1>
           </div>
-          <p className="text-gray-500 text-sm ml-12">Sistem reward karyawan berdasarkan kinerja</p>
+          <p className="text-gray-500 text-sm ml-12">Leaderboard dan riwayat poin karyawan</p>
         </div>
       </motion.div>
 
@@ -45,12 +64,12 @@ const Poin = () => {
             <div className="relative z-10 flex flex-col h-full justify-between">
               <div>
                 <p className="text-yellow-100/90 font-semibold mb-2 text-sm uppercase tracking-wider">Top Performer Bulan Ini</p>
-                <h3 className="text-3xl font-extrabold mb-1 drop-shadow-md">Agus Pratama</h3>
+                <h3 className="text-3xl font-extrabold mb-1 drop-shadow-md">{data.length > 0 ? data[0].nama : '-'}</h3>
               </div>
               
               <div className="flex items-end justify-between mt-6">
                 <div>
-                  <p className="text-4xl font-black tabular-nums drop-shadow-md">125</p>
+                  <p className="text-4xl font-black tabular-nums drop-shadow-md">{data.length > 0 ? data[0].totalPoin : '0'}</p>
                   <p className="text-sm text-yellow-100/90 font-medium">Total Poin</p>
                 </div>
                 <Trophy size={64} className="text-yellow-100 opacity-90 drop-shadow-lg" />
@@ -58,7 +77,7 @@ const Poin = () => {
             </div>
           </Card>
         </motion.div>
-        
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="p-6 h-full flex flex-col">
             <div className="flex items-start justify-between mb-4">
@@ -111,7 +130,7 @@ const Poin = () => {
           <div className="p-5 border-b border-gray-100">
             <TableHeader onSearch={setSearch} title="Leaderboard Karyawan" />
           </div>
-          
+
           <Table>
             <Thead>
               <Tr>
@@ -122,7 +141,9 @@ const Poin = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredData.length === 0 ? (
+              {loading ? (
+                <Tr><Td colSpan={4} className="text-center py-12 text-gray-400">Memuat data poin...</Td></Tr>
+              ) : filteredData.length === 0 ? (
                 <Tr><Td colSpan={4} className="text-center py-12 text-gray-400">
                   <div className="flex flex-col items-center gap-2">
                     <Star size={40} className="text-gray-300" />
@@ -135,9 +156,10 @@ const Poin = () => {
                     <Td className="flex justify-center items-center py-4">
                       {getRankIcon(item.rank)}
                     </Td>
+
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 font-bold text-sm shadow-sm">{item.nama.charAt(0)}</div>
+                        <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 font-bold text-sm shadow-sm">{item.nama?.charAt(0) || '-'}</div>
                         <span className="font-semibold text-gray-900 text-base">{item.nama}</span>
                       </div>
                     </Td>
@@ -148,11 +170,11 @@ const Poin = () => {
                       </div>
                     </Td>
                     <Td>
-                      {item.riwayat.length > 0 ? (
+                      {item.riwayat && item.riwayat.length > 0 ? (
                         <div>
                           <div className="text-sm font-semibold text-gray-800">{item.riwayat[0].aktivitas}</div>
                           <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 font-medium">
-                            {item.riwayat[0].tgl} 
+                            {item.riwayat[0].tgl}
                             <span className="text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">(+{item.riwayat[0].poin})</span>
                           </div>
                         </div>

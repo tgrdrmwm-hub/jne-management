@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
-import { mockUsers } from '../../data/mockData';
+import { authService } from '../../services/authService';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, LogIn, ArrowRight, Package, Truck, Globe } from 'lucide-react';
@@ -20,10 +20,9 @@ const Login = () => {
     e.preventDefault();
     dispatch(loginStart());
 
-    setTimeout(() => {
-      const user = mockUsers.find(u => u.username === username && u.password === password);
-      
-      if (user) {
+    setTimeout(async () => {
+      try {
+        const user = await authService.login(username, password);
         dispatch(loginSuccess(user));
         Swal.fire({
           icon: 'success',
@@ -35,12 +34,12 @@ const Login = () => {
           customClass: { popup: 'rounded-2xl' }
         });
         navigate('/dashboard');
-      } else {
-        dispatch(loginFailure('Username atau password salah'));
+      } catch (error) {
+        dispatch(loginFailure(error.message));
         Swal.fire({
           icon: 'error',
           title: 'Akses Ditolak',
-          text: 'Kredensial yang Anda masukkan tidak valid.',
+          text: error.message || 'Kredensial yang Anda masukkan tidak valid.',
           background: '#fff',
           customClass: { popup: 'rounded-2xl' },
           confirmButtonColor: '#e31e24'
