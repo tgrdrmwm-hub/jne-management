@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { authService } from '../services/authService';
 
 const pageTitles = {
   '/dashboard': 'Dashboard',
@@ -31,8 +32,13 @@ const Header = ({ toggleSidebar }) => {
       confirmButtonText: 'Ya, Logout',
       cancelButtonText: 'Batal',
       customClass: { popup: 'rounded-2xl' }
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
+        try {
+          await authService.logout();
+        } catch (error) {
+          console.error("Logout failed", error);
+        }
         dispatch(logout());
         navigate('/login');
       }
