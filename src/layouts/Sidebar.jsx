@@ -1,12 +1,9 @@
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  Package, 
-  Truck, 
-  CalendarDays, 
   UserCheck, 
-  Award, 
   BarChart3,
+  Users,
   X,
   ChevronRight
 } from 'lucide-react';
@@ -16,12 +13,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
-  { path: '/gudang', name: 'Pengantaran Gudang', icon: Truck },
-  { path: '/paket', name: 'Pengambilan Paket', icon: Package },
-  { path: '/jaga', name: 'Jadwal Jaga', icon: CalendarDays },
   { path: '/absensi', name: 'Absensi', icon: UserCheck },
-  { path: '/poin', name: 'Poin Karyawan', icon: Award },
-  { path: '/laporan', name: 'Grafik & Analytics', icon: BarChart3, roles: ['Admin', 'Supervisor'] },
+  { path: '/staff', name: 'Staff', icon: Users },
+  { path: '/laporan', name: 'Grafik & Analytics', icon: BarChart3, roles: ['Owner', 'Developer'] },
 ];
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -74,7 +68,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <p className="font-semibold text-sm text-white truncate">{user?.name || 'User'}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-[11px] text-slate-400 capitalize">{user?.role || 'Kurir'}</span>
+                <span className="text-[11px] text-slate-400 capitalize">{user?.role || 'Staff'}</span>
               </div>
             </div>
           </div>

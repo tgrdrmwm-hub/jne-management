@@ -12,10 +12,8 @@ import {
 const Laporan = () => {
   const [filter, setFilter] = useState('minggu');
   const [data, setData] = useState({
-    chartDataPengantaran: [],
     absensiData: [],
-    pieData: [],
-    poinData: []
+    pieData: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -75,26 +73,7 @@ const Laporan = () => {
         <div className="flex items-center justify-center h-64 text-gray-500">Memuat data grafik...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card className="!p-6">
-              <CardHeader>
-                <CardTitle>Pengantaran vs Pengambilan Paket</CardTitle>
-              </CardHeader>
-              <div className="h-80 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.chartDataPengantaran} barGap={4}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 500}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12}} />
-                    <RechartsTooltip cursor={{fill: '#F8FAFC'}} contentStyle={customTooltipStyle} />
-                    <Legend iconType="circle" wrapperStyle={{fontSize: 12, fontWeight: 600}} />
-                    <Bar dataKey="diantar" name="Diantar" fill="var(--color-jne-blue)" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="diambil" name="Diambil" fill="var(--color-jne-red)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </motion.div>
+
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Card className="!p-6">
@@ -147,30 +126,7 @@ const Laporan = () => {
             </Card>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <Card className="!p-6">
-              <CardHeader>
-                <CardTitle>Perolehan Poin Karyawan</CardTitle>
-              </CardHeader>
-              <div className="h-80 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.poinData}>
-                    <defs>
-                      <linearGradient id="colorPoin" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-jne-blue)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="var(--color-jne-blue)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 500}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12}} />
-                    <RechartsTooltip contentStyle={customTooltipStyle} />
-                    <Area type="monotone" dataKey="total" name="Total Poin" stroke="var(--color-jne-blue)" fillOpacity={1} fill="url(#colorPoin)" strokeWidth={3} activeDot={{r: 6}} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </motion.div>
+
         </div>
       )}
     </div>

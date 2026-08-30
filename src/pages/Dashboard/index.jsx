@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { dashboardService } from '../../services/dashboardService';
-import { chartDataPengantaran } from '../../data/mockData';
+import { chartDataKehadiran } from '../../data/mockData';
 import { motion } from 'framer-motion';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
@@ -49,10 +49,9 @@ const StatCard = ({ title, value, icon: Icon, gradient, trend, trendValue, delay
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
-    totalDiantar: 0,
-    totalDiambil: 0,
     karyawanHadir: 0,
-    totalPoin: 0,
+    karyawanIzin: 0,
+    totalKaryawan: 0,
     aktivitas: []
   });
   const [loading, setLoading] = useState(true);
@@ -96,39 +95,35 @@ const Dashboard = () => {
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard 
-          title="Paket Diantar" 
-          value={stats.totalDiantar} 
-          icon={Truck} 
-          gradient="bg-gradient-to-br from-blue-500 to-blue-700"
-          trend="up"
-          trendValue="+12%"
-          delay={0}
-        />
-        <StatCard 
-          title="Paket Diambil" 
-          value={stats.totalDiambil} 
-          icon={Package} 
-          gradient="bg-gradient-to-br from-red-500 to-rose-600"
-          trend="up"
-          trendValue="+8%"
-          delay={0.1}
-        />
-        <StatCard 
           title="Karyawan Hadir" 
           value={stats.karyawanHadir} 
           icon={UserCheck} 
           gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
           trend="up"
-          trendValue="96%"
+          trendValue={`${stats.totalKaryawan ? Math.round((stats.karyawanHadir/stats.totalKaryawan)*100) : 0}%`}
+          delay={0}
+        />
+        <StatCard 
+          title="Karyawan Izin/Sakit" 
+          value={stats.karyawanIzin} 
+          icon={Activity} 
+          gradient="bg-gradient-to-br from-amber-400 to-orange-500"
+          trend="down"
+          trendValue="Perlu Perhatian"
+          delay={0.1}
+        />
+        <StatCard 
+          title="Total Karyawan" 
+          value={stats.totalKaryawan} 
+          icon={UserCheck} 
+          gradient="bg-gradient-to-br from-blue-500 to-blue-700"
           delay={0.2}
         />
         <StatCard 
-          title="Total Poin" 
-          value={stats.totalPoin} 
-          icon={Award} 
-          gradient="bg-gradient-to-br from-amber-400 to-orange-500"
-          trend="up"
-          trendValue="+24"
+          title="Laporan Aktif" 
+          value="Tersedia" 
+          icon={TrendingUp} 
+          gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
           delay={0.3}
         />
       </div>
@@ -144,17 +139,17 @@ const Dashboard = () => {
           <Card className="!p-6">
             <CardHeader>
               <div>
-                <CardTitle>Aktivitas Pengantaran & Pengambilan</CardTitle>
+                <CardTitle>Statistik Kehadiran Mingguan</CardTitle>
                 <p className="text-xs text-gray-400 mt-1">Data minggu ini</p>
               </div>
               <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg">
                 <TrendingUp size={14} />
-                Naik 15%
+                Stabil
               </div>
             </CardHeader>
             <div className="h-80 w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartDataPengantaran} barGap={4}>
+                <BarChart data={chartDataKehadiran} barGap={4}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 500}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12}} />
@@ -168,8 +163,8 @@ const Dashboard = () => {
                     }} 
                   />
                   <Legend iconType="circle" wrapperStyle={{fontSize: 12, fontWeight: 600}} />
-                  <Bar dataKey="diantar" name="Diantar" fill="var(--color-jne-blue)" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="diambil" name="Diambil" fill="var(--color-jne-red)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="hadir" name="Hadir" fill="var(--color-jne-blue)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="izin" name="Izin/Sakit" fill="var(--color-jne-red)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

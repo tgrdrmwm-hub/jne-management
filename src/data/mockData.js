@@ -1,19 +1,16 @@
 export const mockUsers = [
-  { id: 1, username: 'admin', password: 'password', name: 'Budi Santoso', role: 'Admin' },
-  { id: 2, username: 'spv', password: 'password', name: 'Siti Aminah', role: 'Supervisor' },
-  { id: 3, username: 'kurir1', password: 'password', name: 'Agus Pratama', role: 'Kurir' },
-  { id: 4, username: 'kurir2', password: 'password', name: 'Dodi Setiawan', role: 'Kurir' },
+  { id: 1, email: 'owner@umaratax.com', password: '123456', name: 'Owner Umaratax', role: 'Owner' },
+  { id: 2, email: 'developer@umaratax.com', password: '123456', name: 'Developer Umaratax', role: 'Developer' }
 ];
 
 export const mockDashboardData = {
-  totalDiantar: 145,
-  totalDiambil: 89,
   karyawanHadir: 42,
-  totalPoin: 1250,
+  karyawanIzin: 3,
+  totalKaryawan: 45,
   aktivitas: [
-    { id: 1, text: 'Agus Pratama mengantar paket ke Gudang A', time: '10 menit yang lalu' },
+    { id: 1, text: 'Agus Pratama melakukan absensi (Hadir)', time: '10 menit yang lalu' },
     { id: 2, text: 'Siti Aminah memvalidasi absensi', time: '1 jam yang lalu' },
-    { id: 3, text: 'Dodi Setiawan mengambil paket dari Gudang B', time: '2 jam yang lalu' },
+    { id: 3, text: 'Dodi Setiawan melakukan absensi (Terlambat)', time: '2 jam yang lalu' },
   ]
 };
 
@@ -44,12 +41,12 @@ export const mockPoinData = [
 ];
 
 // Data for Charts
-export const chartDataPengantaran = [
-  { name: 'Senin', diantar: 120, diambil: 80 },
-  { name: 'Selasa', diantar: 150, diambil: 95 },
-  { name: 'Rabu', diantar: 180, diambil: 110 },
-  { name: 'Kamis', diantar: 130, diambil: 90 },
-  { name: 'Jumat', diantar: 160, diambil: 120 },
-  { name: 'Sabtu', diantar: 210, diambil: 150 },
-  { name: 'Minggu', diantar: 90, diambil: 60 },
+export const chartDataKehadiran = [
+  { name: 'Senin', hadir: 42, izin: 3 },
+  { name: 'Selasa', hadir: 44, izin: 1 },
+  { name: 'Rabu', hadir: 40, izin: 5 },
+  { name: 'Kamis', hadir: 43, izin: 2 },
+  { name: 'Jumat', hadir: 45, izin: 0 },
+  { name: 'Sabtu', hadir: 41, izin: 4 },
+  { name: 'Minggu', hadir: 10, izin: 2 },
 ];

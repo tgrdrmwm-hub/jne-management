@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
 import { authService } from '../../services/authService';
+import { mockUsers } from '../../data/mockData';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, LogIn, ArrowRight, Package, Truck, Globe } from 'lucide-react';
@@ -10,7 +11,7 @@ import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -22,17 +23,69 @@ const Login = () => {
 
     setTimeout(async () => {
       try {
-        const user = await authService.login(username, password);
+        const user = await authService.login(email, password);
         dispatch(loginSuccess(user));
-        Swal.fire({
-          icon: 'success',
-          title: 'Login Berhasil',
-          text: `Selamat datang, ${user.name}!`,
-          timer: 1500,
-          showConfirmButton: false,
-          background: '#fff',
-          customClass: { popup: 'rounded-2xl' }
-        });
+        
+        if (password === '123456') {
+          const { value: formValues } = await Swal.fire({
+            title: 'Ganti Password Wajib',
+            html: `
+              <p style="font-size:14px; margin-bottom:10px;">Anda masih menggunakan password bawaan. Silakan ganti password Anda untuk keamanan.</p>
+              <input type="password" id="swal-input1" class="swal2-input" placeholder="Password Baru">
+              <input type="password" id="swal-input2" class="swal2-input" placeholder="Konfirmasi Password Baru">
+            `,
+            focusConfirm: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            confirmButtonText: 'Simpan Password',
+            confirmButtonColor: 'var(--color-jne-blue)',
+            preConfirm: () => {
+              const p1 = document.getElementById('swal-input1').value;
+              const p2 = document.getElementById('swal-input2').value;
+              if (!p1 || !p2) {
+                Swal.showValidationMessage('Password tidak boleh kosong');
+                return false;
+              }
+              if (p1 !== p2) {
+                Swal.showValidationMessage('Password baru tidak cocok');
+                return false;
+              }
+              if (p1.length < 6) {
+                Swal.showValidationMessage('Password minimal 6 karakter');
+                return false;
+              }
+              return p1;
+            }
+          });
+
+          if (formValues) {
+            Swal.fire({
+              title: 'Menyimpan...',
+              allowOutsideClick: false,
+              didOpen: () => Swal.showLoading()
+            });
+            await authService.updatePassword(formValues);
+            Swal.fire({
+              icon: 'success',
+              title: 'Berhasil',
+              text: 'Password Anda telah diperbarui!',
+              timer: 1500,
+              showConfirmButton: false,
+              customClass: { popup: 'rounded-2xl' }
+            });
+          }
+        } else {
+          Swal.fire({
+            icon: 'success',
+            title: 'Login Berhasil',
+            text: `Selamat datang, ${user.name}!`,
+            timer: 1500,
+            showConfirmButton: false,
+            background: '#fff',
+            customClass: { popup: 'rounded-2xl' }
+          });
+        }
+        
         navigate('/dashboard');
       } catch (error) {
         dispatch(loginFailure(error.message));
@@ -46,6 +99,37 @@ const Login = () => {
         });
       }
     }, 1200);
+  };
+
+  const handleSeedUsers = async () => {
+    try {
+      Swal.fire({
+        title: 'Inisialisasi Database',
+        text: 'Mendaftarkan akun dummy ke Supabase Auth...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
+      const count = await authService.seedUsers(mockUsers);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil',
+        text: `Data auth telah berhasil disiapkan (${count} akun). Silakan login.`,
+        background: '#fff',
+        customClass: { popup: 'rounded-2xl' }
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: error.message,
+        background: '#fff',
+        customClass: { popup: 'rounded-2xl' }
+      });
+    }
   };
 
   return (
@@ -141,10 +225,10 @@ const Login = () => {
             <div className="space-y-5">
               <Input
                 icon={User}
-                label="Username"
-                placeholder="misal: admin"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                label="Email"
+                placeholder="misal: owner@umaratax.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="!py-3 !bg-gray-50/50 focus:!bg-white !rounded-xl"
                 required
               />
@@ -183,30 +267,7 @@ const Login = () => {
             </Button>
           </form>
 
-          {/* Demo Login Badges */}
-          <div className="mt-12 pt-8 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 text-center lg:text-left">Akses Demo Cepat</p>
-            <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
-              {[
-                { label: 'Admin', user: 'admin', bg: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-100' },
-                { label: 'SPV', user: 'spv', bg: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100' },
-                { label: 'Kurir', user: 'kurir1', bg: 'bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-100' },
-              ].map((cred) => (
-                <button
-                  key={cred.user}
-                  type="button"
-                  onClick={() => { setUsername(cred.user); setPassword('password'); }}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-sm font-semibold ${cred.bg}`}
-                >
-                  <User size={14} />
-                  {cred.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-gray-400 mt-3 text-center lg:text-left">
-              *Klik tombol di atas untuk login otomatis tanpa mengetik.
-            </p>
-          </div>
+
         </motion.div>
       </div>
     </div>

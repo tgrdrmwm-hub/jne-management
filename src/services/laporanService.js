@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { chartDataPengantaran as mockChart, mockDashboardData } from '../data/mockData';
+import { mockDashboardData } from '../data/mockData';
 
 export const laporanService = {
   // Get data chart laporan
@@ -36,8 +36,6 @@ export const laporanService = {
     }
 
     return {
-      // Data statis dari mock karena fungsi Date/Group By kompleks di frontend pure JS
-      chartDataPengantaran: mockChart, 
       absensiData: [
         { name: 'Senin', hadir: 45, terlambat: 5, alpha: 0 },
         { name: 'Selasa', hadir: 42, terlambat: 7, alpha: 1 },
@@ -46,12 +44,6 @@ export const laporanService = {
         { name: 'Jumat', hadir: 46, terlambat: 3, alpha: 1 },
       ],
       pieData,
-      poinData: [
-        { name: 'Week 1', total: 320 },
-        { name: 'Week 2', total: 450 },
-        { name: 'Week 3', total: 410 },
-        { name: 'Week 4', total: 580 },
-      ],
     };
   },
 };

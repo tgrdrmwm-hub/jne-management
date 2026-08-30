@@ -3,12 +3,9 @@ import AdminLayout from '../layouts/AdminLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
-import Gudang from '../pages/Gudang';
-import Paket from '../pages/Paket';
-import Jaga from '../pages/Jaga';
 import Absensi from '../pages/Absensi';
-import Poin from '../pages/Poin';
 import Laporan from '../pages/Laporan';
+import Staff from '../pages/Staff';
 import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -35,28 +32,16 @@ export const router = createBrowserRouter([
         element: <Dashboard />,
       },
       {
-        path: 'gudang',
-        element: <Gudang />,
-      },
-      {
-        path: 'paket',
-        element: <Paket />,
-      },
-      {
-        path: 'jaga',
-        element: <Jaga />,
-      },
-      {
         path: 'absensi',
         element: <Absensi />,
       },
       {
-        path: 'poin',
-        element: <Poin />,
-      },
-      {
         path: 'laporan',
         element: <Laporan />,
+      },
+      {
+        path: 'staff',
+        element: <Staff />,
       },
     ],
   },
