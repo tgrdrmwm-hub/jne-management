@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
 import { authService } from '../../services/authService';
-import { mockUsers } from '../../data/mockData';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, LogIn, ArrowRight, Package, Truck, Globe } from 'lucide-react';
@@ -101,36 +100,6 @@ const Login = () => {
     }, 1200);
   };
 
-  const handleSeedUsers = async () => {
-    try {
-      Swal.fire({
-        title: 'Inisialisasi Database',
-        text: 'Mendaftarkan akun dummy ke Supabase Auth...',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-      
-      const count = await authService.seedUsers(mockUsers);
-      
-      Swal.fire({
-        icon: 'success',
-        title: 'Berhasil',
-        text: `Data auth telah berhasil disiapkan (${count} akun). Silakan login.`,
-        background: '#fff',
-        customClass: { popup: 'rounded-2xl' }
-      });
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Gagal',
-        text: error.message,
-        background: '#fff',
-        customClass: { popup: 'rounded-2xl' }
-      });
-    }
-  };
 
   return (
     <div className="min-h-screen w-full flex bg-white font-['Inter',system-ui,sans-serif]">

@@ -3,7 +3,9 @@ import { Card } from '../../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td, TableHeader } from '../../components/ui/Table';
 import { Button } from '../../components/ui/Button';
 import { absensiService } from '../../services/absensiService';
-import { Download, FileText, Clock, LogIn, LogOut, Search, UserCheck } from 'lucide-react';
+import { staffService } from '../../services/staffService';
+import { poinService } from '../../services/poinService';
+import { Download, FileText, Clock, LogIn, LogOut, Search, UserCheck, PlusCircle, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -63,12 +65,21 @@ const Absensi = () => {
 
   const handleClockIn = async () => {
     try {
-      await absensiService.clockIn(currentUser.id);
+      const clockInData = await absensiService.clockIn(currentUser.id);
+      
+      // Tambah poin absen (tertaut absensiId untuk cascade)
+      await poinService.addPoin(
+        currentUser.id, 
+        10, 
+        'Absen Tepat Waktu (Clock In)',
+        { absensiId: clockInData?.id }
+      );
+
       Swal.fire({
         icon: 'success',
         title: 'Clock In Berhasil',
-        text: `Selamat bekerja, ${currentUser.name}!`,
-        timer: 1500,
+        html: `Selamat bekerja, ${currentUser.name}!<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)`,
+        timer: 2000,
         showConfirmButton: false,
         customClass: { popup: 'rounded-2xl' }
       });
@@ -126,6 +137,142 @@ const Absensi = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Absensi");
     XLSX.writeFile(workbook, "Laporan_Absensi.xlsx");
+  };
+
+  const handleManualAbsensi = async () => {
+    try {
+      Swal.fire({
+        title: 'Memuat data...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+      const staffList = await staffService.getStaffList();
+      Swal.close();
+
+      const optionsHtml = staffList.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      const today = new Date().toISOString().split('T')[0];
+
+      const { value: formValues } = await Swal.fire({
+        title: 'Absensi Manual',
+        html: `
+          <div class="space-y-4 text-left font-['Inter',system-ui,sans-serif]">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Karyawan</label>
+              <select id="swal-karyawan" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="">Pilih Karyawan</option>
+                ${optionsHtml}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+              <input type="date" id="swal-tanggal" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none" value="${today}">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Jam Masuk</label>
+                <input type="time" id="swal-masuk" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Jam Keluar</label>
+                <input type="time" id="swal-keluar" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select id="swal-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+                <option value="Hadir">Hadir</option>
+                <option value="Terlambat">Terlambat</option>
+                <option value="Sakit">Sakit</option>
+                <option value="Izin">Izin</option>
+                <option value="Alpha">Alpha</option>
+                <option value="Cuti">Cuti</option>
+              </select>
+            </div>
+          </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Simpan',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#10b981',
+        customClass: { popup: 'rounded-2xl' },
+        preConfirm: () => {
+          const karyawan_id = document.getElementById('swal-karyawan').value;
+          const tanggal = document.getElementById('swal-tanggal').value;
+          const jam_masuk = document.getElementById('swal-masuk').value;
+          const jam_keluar = document.getElementById('swal-keluar').value;
+          const status = document.getElementById('swal-status').value;
+          
+          if (!karyawan_id) {
+            Swal.showValidationMessage('Karyawan harus dipilih');
+            return false;
+          }
+          if (!tanggal) {
+            Swal.showValidationMessage('Tanggal harus diisi');
+            return false;
+          }
+          if (['Hadir', 'Terlambat'].includes(status) && !jam_masuk) {
+            Swal.showValidationMessage('Jam masuk harus diisi untuk status Hadir/Terlambat');
+            return false;
+          }
+          return { karyawan_id, tanggal, jam_masuk, jam_keluar, status };
+        }
+      });
+
+      if (formValues) {
+        Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const savedAbsensi = await absensiService.addManual(formValues);
+        
+        let poinText = '';
+        if (formValues.status === 'Hadir') {
+          poinText = '<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)';
+          await poinService.addPoin(
+            formValues.karyawan_id, 
+            10, 
+            'Absensi Manual (Hadir)',
+            { absensiId: savedAbsensi?.id }
+          );
+        }
+        else if (formValues.status === 'Terlambat') {
+          poinText = '<br/><br/><span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)';
+          await poinService.addPoin(
+            formValues.karyawan_id, 
+            -5, 
+            'Absensi Manual (Terlambat)',
+            { absensiId: savedAbsensi?.id }
+          );
+        }
+
+        Swal.fire({ icon: 'success', title: 'Berhasil', html: `Absensi manual berhasil disimpan${poinText}`, timer: 2000, showConfirmButton: false, customClass: { popup: 'rounded-2xl' } });
+        fetchData();
+      }
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: error.message, customClass: { popup: 'rounded-2xl' } });
+    }
+  };
+
+  const handleDelete = (id) => {
+    Swal.fire({
+      title: 'Hapus Data Absensi?',
+      text: "Data yang dihapus tidak dapat dikembalikan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e31e24',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
+      customClass: { popup: 'rounded-2xl' }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await absensiService.deleteAbsensi(id);
+          Swal.fire({ icon: 'success', title: 'Terhapus!', text: 'Data absensi berhasil dihapus.', customClass: { popup: 'rounded-2xl' } });
+          fetchData(); // Refresh table
+        } catch (error) {
+          Swal.fire({ icon: 'error', title: 'Gagal', text: error.message, customClass: { popup: 'rounded-2xl' } });
+        }
+      }
+    });
   };
 
   return (
@@ -191,9 +338,14 @@ const Absensi = () => {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" icon={FileText} onClick={handleExportPDF} className="w-full sm:w-auto">Export PDF</Button>
-              <Button variant="outline" size="sm" icon={Download} onClick={handleExportExcel} className="w-full sm:w-auto">Export Excel</Button>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button size="sm" icon={PlusCircle} onClick={handleManualAbsensi} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-transparent">Absensi Manual</Button>
+              {['Owner', 'Developer'].includes(currentUser.role) && (
+                <>
+                  <Button variant="outline" size="sm" icon={FileText} onClick={handleExportPDF} className="w-full sm:w-auto">Export PDF</Button>
+                  <Button variant="outline" size="sm" icon={Download} onClick={handleExportExcel} className="w-full sm:w-auto">Export Excel</Button>
+                </>
+              )}
             </div>
           </div>
           
@@ -206,6 +358,7 @@ const Absensi = () => {
                 <Th>Jam Keluar</Th>
                 <Th>Total Jam</Th>
                 <Th>Status</Th>
+                {['Owner', 'Developer'].includes(currentUser.role) && <Th className="text-right">Aksi</Th>}
               </Tr>
             </Thead>
             <Tbody>
@@ -247,6 +400,17 @@ const Absensi = () => {
                       </div>
                     </Td>
                     <Td><StatusBadge status={item.status} /></Td>
+                    {['Owner', 'Developer'].includes(currentUser.role) && (
+                      <Td className="text-right">
+                        <button 
+                          onClick={() => handleDelete(item.id)}
+                          className="p-2 text-slate-400 hover:text-[var(--color-jne-red)] hover:bg-red-50 rounded-lg transition-colors inline-flex"
+                          title="Hapus Absensi"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </Td>
+                    )}
                   </Tr>
                 ))
               )}

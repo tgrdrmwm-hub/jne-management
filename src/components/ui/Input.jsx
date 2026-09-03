@@ -25,11 +25,11 @@ export const Input = forwardRef(({
         <input
           ref={ref}
           className={clsx(
-            "w-full rounded-xl border bg-gray-50/50 px-4 py-2.5 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:bg-white",
+            "w-full rounded-lg border bg-white px-4 py-2.5 text-sm transition-all duration-200 focus:outline-none focus:ring-4",
             Icon && "pl-10",
             error 
               ? "border-red-300 focus:border-red-500 focus:ring-red-500/20" 
-              : "border-gray-200 focus:border-blue-500 focus:ring-blue-500/20",
+              : "border-slate-300 focus:border-[var(--color-jne-blue)] focus:ring-[var(--color-jne-blue)]/10 hover:border-slate-400",
             className
           )}
           {...props}
@@ -60,10 +60,10 @@ export const Select = forwardRef(({
       <select
         ref={ref}
         className={clsx(
-          "w-full rounded-xl border bg-gray-50/50 px-4 py-2.5 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:bg-white appearance-none cursor-pointer",
+          "w-full rounded-lg border bg-white px-4 py-2.5 text-sm transition-all duration-200 focus:outline-none focus:ring-4 appearance-none cursor-pointer",
           error 
             ? "border-red-300 focus:border-red-500 focus:ring-red-500/20" 
-            : "border-gray-200 focus:border-blue-500 focus:ring-blue-500/20",
+            : "border-slate-300 focus:border-[var(--color-jne-blue)] focus:ring-[var(--color-jne-blue)]/10 hover:border-slate-400",
           className
         )}
         {...props}

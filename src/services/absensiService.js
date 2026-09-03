@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { aktivitasService } from './aktivitasService';
 
 export const absensiService = {
   // Get absensi hari ini (atau semua)
@@ -28,7 +29,7 @@ export const absensiService = {
   async clockIn(userId) {
     const now = new Date();
     const tanggal = now.toISOString().split('T')[0];
-    const jamMasuk = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const jamMasuk = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     // Cek sudah clock in
     const { data: existing } = await supabase
@@ -61,6 +62,18 @@ export const absensiService = {
 
     if (error) throw error;
 
+    // Log ke tabel aktivitas
+    await aktivitasService.logActivity({
+      user_id: userId,
+      absensi_id: data.id,
+      title: 'Clock In Berhasil',
+      description: `${data.users?.name || 'Karyawan'} absen masuk pada ${jamMasuk} (Status: ${status})`,
+      type: 'absen'
+    });
+
+    // Dispatch event agar Header (Notifikasi) otomatis update
+    window.dispatchEvent(new Event('absensiUpdated'));
+
     return {
       id: data.id,
       nama: data.users?.name || '-',
@@ -76,7 +89,7 @@ export const absensiService = {
   async clockOut(userId) {
     const now = new Date();
     const tanggal = now.toISOString().split('T')[0];
-    const jamKeluar = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const jamKeluar = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     // Cari data clock in hari ini
     const { data: existing, error: errCek } = await supabase
@@ -104,6 +117,85 @@ export const absensiService = {
 
     if (error) throw error;
 
+    // Ambil nama user untuk log
+    const { data: userData } = await supabase.from('users').select('name').eq('id', userId).single();
+
+    // Log ke tabel aktivitas
+    await aktivitasService.logActivity({
+      user_id: userId,
+      title: 'Clock Out Berhasil',
+      description: `${userData?.name || 'Karyawan'} absen keluar pada ${jamKeluar} (Total: ${totalJam} Jam)`,
+      type: 'absen'
+    });
+
+    // Dispatch event agar Header (Notifikasi) otomatis update
+    window.dispatchEvent(new Event('absensiUpdated'));
+
     return { jamKeluar, totalJam };
   },
+
+  // Tambah Absensi Manual
+  async addManual(data) {
+    let total_jam = 0;
+    if (data.jam_masuk && data.jam_keluar) {
+      const masukParts = data.jam_masuk.split(':');
+      const keluarParts = data.jam_keluar.split(':');
+      total_jam = Math.max(0, parseInt(keluarParts[0]) - parseInt(masukParts[0]));
+    }
+
+    const { data: insertedData, error } = await supabase
+      .from('absensi')
+      .insert({
+        karyawan_id: data.karyawan_id,
+        tanggal: data.tanggal,
+        jam_masuk: data.jam_masuk || null,
+        jam_keluar: data.jam_keluar || null,
+        total_jam,
+        status: data.status,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Ambil nama user untuk log
+    const { data: userData } = await supabase.from('users').select('name').eq('id', data.karyawan_id).single();
+
+    // Log ke tabel aktivitas
+    await aktivitasService.logActivity({
+      user_id: data.karyawan_id,
+      absensi_id: insertedData?.id,
+      title: 'Absensi Manual',
+      description: `Data absensi ditambahkan manual untuk ${userData?.name || 'Karyawan'} (Tanggal: ${data.tanggal})`,
+      type: 'system'
+    });
+    
+    // Dispatch event agar Header (Notifikasi) otomatis update
+    window.dispatchEvent(new Event('absensiUpdated'));
+    
+    return insertedData;
+  },
+
+  // Hapus Data Absensi (Khusus Admin/Developer)
+  async deleteAbsensi(id) {
+    const { error } = await supabase
+      .from('absensi')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    
+    // Log ke tabel aktivitas
+    await aktivitasService.logActivity({
+      user_id: null,
+      title: 'Data Absensi Dihapus',
+      description: `Sistem menghapus log absensi ID: ${id}`,
+      type: 'system'
+    });
+    
+    // Trigger refresh
+    window.dispatchEvent(new Event('absensiUpdated'));
+    
+    return true;
+  }
 };

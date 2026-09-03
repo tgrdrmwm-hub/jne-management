@@ -1,28 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Users, Mail, Shield, User, Loader2, Search } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Users, Mail, Shield, User, Loader2, Search, Plus, Trash2, Edit2, X } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import Swal from 'sweetalert2';
 import { staffService } from '../../services/staffService';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 
 const Staff = () => {
+  const { user: currentUser } = useSelector((state) => state.auth);
+  const isDeveloper = currentUser?.role === 'Developer' || currentUser?.role === 'Owner';
+
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const fetchStaff = async () => {
-      try {
-        const data = await staffService.getStaffList();
-        setStaff(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('add');
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    username: '',
+    name: '',
+    role: 'Staff',
+    password: ''
+  });
 
+  const fetchStaff = async () => {
+    try {
+      setLoading(true);
+      const data = await staffService.getStaffList();
+      setStaff(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStaff();
   }, []);
 
@@ -48,6 +66,75 @@ const Staff = () => {
     }
   };
 
+  const handleOpenModal = (mode, staffData = null) => {
+    setModalMode(mode);
+    if (staffData) {
+      setSelectedStaff(staffData);
+      setFormData({
+        username: staffData.username,
+        name: staffData.name,
+        role: staffData.role,
+        password: '' // Password can be left blank on edit unless they want to change it (requires more logic, but we keep it simple)
+      });
+    } else {
+      setSelectedStaff(null);
+      setFormData({ username: '', name: '', role: 'Staff', password: '' });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData({ username: '', name: '', role: 'Staff', password: '' });
+    setSelectedStaff(null);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (modalMode === 'add') {
+        await staffService.createStaff(formData);
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Staff berhasil ditambahkan', customClass: { popup: 'rounded-2xl' } });
+      } else {
+        // Exclude password from update if it's empty
+        const updates = { name: formData.name, username: formData.username, role: formData.role };
+        await staffService.updateStaff(selectedStaff.id, updates);
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data staff berhasil diperbarui', customClass: { popup: 'rounded-2xl' } });
+      }
+      handleCloseModal();
+      fetchStaff();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message, customClass: { popup: 'rounded-2xl' } });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = (id) => {
+    Swal.fire({
+      title: 'Hapus Staff?',
+      text: "Data staff yang dihapus tidak dapat dikembalikan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e31e24',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
+      customClass: { popup: 'rounded-2xl' }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await staffService.deleteStaff(id);
+          Swal.fire({ icon: 'success', title: 'Terhapus!', text: 'Data staff berhasil dihapus.', customClass: { popup: 'rounded-2xl' } });
+          fetchStaff();
+        } catch (err) {
+          Swal.fire({ icon: 'error', title: 'Gagal', text: err.message, customClass: { popup: 'rounded-2xl' } });
+        }
+      }
+    });
+  };
+
   const filteredStaff = staff.filter(user => 
     user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,17 +156,28 @@ const Staff = () => {
             </div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Data Staff</h1>
           </div>
-          <p className="text-slate-500 font-medium">Lihat dan pantau daftar pengguna di sistem.</p>
+          <p className="text-slate-500 font-medium">Lihat dan kelola daftar pengguna di sistem.</p>
         </div>
 
-        <div className="w-full md:w-72">
-          <Input 
-            icon={Search}
-            placeholder="Cari nama atau role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="!bg-white !shadow-sm"
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="w-full sm:w-72">
+            <Input 
+              icon={Search}
+              placeholder="Cari nama atau role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="!bg-white !shadow-sm"
+            />
+          </div>
+          {isDeveloper && (
+            <button 
+              onClick={() => handleOpenModal('add')}
+              className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-jne-blue)] hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all"
+            >
+              <Plus size={18} />
+              <span>Tambah User</span>
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -95,54 +193,183 @@ const Staff = () => {
         </div>
       ) : (
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
         >
-          {filteredStaff.map((user, index) => (
-            <motion.div
-              key={user.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ y: -4 }}
-            >
-              <Card className="h-full overflow-hidden border border-slate-100 hover:shadow-xl hover:shadow-[var(--color-jne-blue)]/5 transition-all duration-300 group p-6">
-                  <div className="flex items-start gap-4">
-                    {/* Avatar Placeholder */}
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-xl font-bold text-slate-400 shadow-inner group-hover:from-[var(--color-jne-blue)]/10 group-hover:to-[var(--color-jne-blue)]/5 group-hover:text-[var(--color-jne-blue)] transition-colors">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getRoleColor(user.role)}`}>
-                          {getRoleIcon(user.role)}
-                          {user.role}
-                        </span>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-sm font-semibold">
+                  <th className="py-4 px-6 font-semibold">Profil Staff</th>
+                  <th className="py-4 px-6 font-semibold">Role</th>
+                  <th className="py-4 px-6 font-semibold">Email / Kontak</th>
+                  {isDeveloper && <th className="py-4 px-6 font-semibold text-right">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredStaff.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-sm font-bold text-slate-500 group-hover:from-[var(--color-jne-blue)]/10 group-hover:to-[var(--color-jne-blue)]/5 group-hover:text-[var(--color-jne-blue)] transition-colors">
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 group-hover:text-[var(--color-jne-blue)] transition-colors">{u.name}</p>
+                          <p className="text-xs text-slate-500">@{u.username}</p>
+                        </div>
                       </div>
-                      <h3 className="text-lg font-bold text-slate-900 truncate mb-1">
-                        {user.name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 text-sm text-slate-500 truncate">
-                        <Mail size={14} className="shrink-0" />
-                        <span className="truncate">{user.username}@umaratax.com</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border ${getRoleColor(u.role)}`}>
+                        {getRoleIcon(u.role)}
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Mail size={14} className="text-slate-400" />
+                        <span>{u.username}@umaratax.com</span>
                       </div>
-                    </div>
-                  </div>
-              </Card>
-            </motion.div>
-          ))}
-          
-          {filteredStaff.length === 0 && (
-            <div className="col-span-full h-40 flex flex-col items-center justify-center text-slate-400">
-              <Users size={32} className="mb-2 opacity-50" />
-              <p>Tidak ada staff yang ditemukan.</p>
-            </div>
-          )}
+                    </td>
+                    {isDeveloper && (
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleOpenModal('edit', u)}
+                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          {/* Mencegah admin menghapus dirinya sendiri */}
+                          {currentUser?.id !== u.id && (
+                            <button 
+                              onClick={() => handleDelete(u.id)}
+                              className="p-2 text-slate-400 hover:text-[var(--color-jne-red)] hover:bg-red-50 rounded-lg transition-colors"
+                              title="Hapus"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                
+                {filteredStaff.length === 0 && (
+                  <tr>
+                    <td colSpan={isDeveloper ? "4" : "3"} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center">
+                        <Users size={32} className="mb-3 opacity-50" />
+                        <p>Tidak ada staff yang ditemukan.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </motion.div>
       )}
+
+      {/* Modal Tambah/Edit Staff */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={handleCloseModal}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-800">
+                  {modalMode === 'add' ? 'Tambah User Baru' : 'Edit Data User'}
+                </h2>
+                <button onClick={handleCloseModal} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[var(--color-jne-blue)]/20 focus:border-[var(--color-jne-blue)] outline-none transition-all"
+                    placeholder="Masukkan nama lengkap"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Username</label>
+                  <div className="flex rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[var(--color-jne-blue)]/20 focus-within:border-[var(--color-jne-blue)] transition-all">
+                    <input 
+                      type="text" 
+                      required 
+                      value={formData.username}
+                      onChange={e => setFormData({...formData, username: e.target.value.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()})}
+                      className="w-full px-4 py-2.5 outline-none"
+                      placeholder="Contoh: ryan"
+                    />
+                    <div className="bg-slate-50 px-4 flex items-center border-l border-slate-200 text-slate-500 text-sm font-medium">
+                      @umaratax.com
+                    </div>
+                  </div>
+                </div>
+                {modalMode === 'add' && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700 flex items-start gap-2">
+                    <svg className="w-5 h-5 shrink-0 text-blue-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p>Password default untuk user baru adalah <strong>123456</strong>. User dapat menggantinya nanti.</p>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Role / Peran</label>
+                  <select 
+                    value={formData.role}
+                    onChange={e => setFormData({...formData, role: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[var(--color-jne-blue)]/20 focus:border-[var(--color-jne-blue)] outline-none transition-all bg-white"
+                  >
+                    <option value="Staff">Staff</option>
+                    <option value="Developer">Developer</option>
+                    <option value="Owner">Owner</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={handleCloseModal}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-jne-blue)] text-white font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                    Simpan
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

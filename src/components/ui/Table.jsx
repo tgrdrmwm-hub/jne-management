@@ -11,7 +11,7 @@ export const Table = ({ children, className }) => (
 );
 
 export const Thead = ({ children, className }) => (
-  <thead className={clsx("bg-gray-50/80 border-b border-gray-100", className)}>
+  <thead className={clsx("bg-slate-50/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10", className)}>
     {children}
   </thead>
 );
@@ -23,19 +23,19 @@ export const Tbody = ({ children, className }) => (
 );
 
 export const Tr = ({ children, className }) => (
-  <tr className={clsx("hover:bg-blue-50/30 transition-colors duration-150", className)}>
+  <tr className={clsx("hover:bg-slate-50/50 transition-colors duration-150", className)}>
     {children}
   </tr>
 );
 
 export const Th = ({ children, className }) => (
-  <th className={clsx("px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider", className)}>
+  <th className={clsx("px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider", className)}>
     {children}
   </th>
 );
 
 export const Td = ({ children, className, ...props }) => (
-  <td className={clsx("px-5 py-4 text-sm text-gray-700", className)} {...props}>
+  <td className={clsx("px-5 py-3 text-sm text-slate-600", className)} {...props}>
     {children}
   </td>
 );

@@ -4,7 +4,7 @@ export const Card = ({ children, className, ...props }) => {
   return (
     <div 
       className={clsx(
-        "bg-white rounded-3xl shadow-card hover:shadow-card-hover border border-gray-100/80 p-5 transition-shadow duration-300", 
+        "bg-white rounded-2xl shadow-card hover:shadow-card-hover border border-slate-200/60 p-5 transition-shadow duration-300", 
         className
       )} 
       {...props}

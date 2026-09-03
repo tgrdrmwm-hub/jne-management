@@ -5,7 +5,10 @@ import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import Absensi from '../pages/Absensi';
 import Laporan from '../pages/Laporan';
+import LaporanHarian from '../pages/LaporanHarian';
+import LaporanStaff from '../pages/LaporanStaff';
 import Staff from '../pages/Staff';
+import Poin from '../pages/Poin';
 import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -40,8 +43,20 @@ export const router = createBrowserRouter([
         element: <Laporan />,
       },
       {
+        path: 'laporan-harian',
+        element: <LaporanHarian />,
+      },
+      {
+        path: 'laporan-staff',
+        element: <LaporanStaff />,
+      },
+      {
         path: 'staff',
         element: <Staff />,
+      },
+      {
+        path: 'poin',
+        element: <Poin />,
       },
     ],
   },
