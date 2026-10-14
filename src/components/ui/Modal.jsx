@@ -26,16 +26,16 @@ export const Modal = ({ isOpen, onClose, title, children, className }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: 'spring', duration: 0.5 }}
+            exit={{ opacity: 0, scale: 0.98, y: 12 }}
+            transition={{ type: 'spring', duration: 0.35, bounce: 0 }}
             className={clsx(
-              "relative bg-white rounded-3xl shadow-2xl w-full overflow-hidden flex flex-col max-h-full border border-gray-100/50",
+              "relative bg-white rounded-2xl shadow-xl w-full overflow-hidden flex flex-col max-h-full border border-slate-200/90",
               className || "max-w-md"
             )}
           >

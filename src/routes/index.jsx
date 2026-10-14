@@ -9,6 +9,8 @@ import LaporanHarian from '../pages/LaporanHarian';
 import LaporanStaff from '../pages/LaporanStaff';
 import Staff from '../pages/Staff';
 import Poin from '../pages/Poin';
+import Kalender from '../pages/Kalender';
+import Omset from '../pages/Omset';
 import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -39,6 +41,10 @@ export const router = createBrowserRouter([
         element: <Absensi />,
       },
       {
+        path: 'presensi',
+        element: <Absensi />,
+      },
+      {
         path: 'laporan',
         element: <Laporan />,
       },
@@ -57,6 +63,14 @@ export const router = createBrowserRouter([
       {
         path: 'poin',
         element: <Poin />,
+      },
+      {
+        path: 'kalender',
+        element: <Kalender />,
+      },
+      {
+        path: 'omset',
+        element: <Omset />,
       },
     ],
   },

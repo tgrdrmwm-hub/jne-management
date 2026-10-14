@@ -67,7 +67,7 @@ export const absensiService = {
       user_id: userId,
       absensi_id: data.id,
       title: 'Clock In Berhasil',
-      description: `${data.users?.name || 'Karyawan'} absen masuk pada ${jamMasuk} (Status: ${status})`,
+      description: `${data.users?.name || 'Karyawan'} presensi masuk pada ${jamMasuk} (Status: ${status})`,
       type: 'absen'
     });
 
@@ -124,7 +124,7 @@ export const absensiService = {
     await aktivitasService.logActivity({
       user_id: userId,
       title: 'Clock Out Berhasil',
-      description: `${userData?.name || 'Karyawan'} absen keluar pada ${jamKeluar} (Total: ${totalJam} Jam)`,
+      description: `${userData?.name || 'Karyawan'} presensi keluar pada ${jamKeluar} (Total: ${totalJam} Jam)`,
       type: 'absen'
     });
 
@@ -165,8 +165,8 @@ export const absensiService = {
     await aktivitasService.logActivity({
       user_id: data.karyawan_id,
       absensi_id: insertedData?.id,
-      title: 'Absensi Manual',
-      description: `Data absensi ditambahkan manual untuk ${userData?.name || 'Karyawan'} (Tanggal: ${data.tanggal})`,
+      title: 'Presensi Manual',
+      description: `Data presensi ditambahkan manual untuk ${userData?.name || 'Karyawan'} (Tanggal: ${data.tanggal})`,
       type: 'system'
     });
     
@@ -188,8 +188,8 @@ export const absensiService = {
     // Log ke tabel aktivitas
     await aktivitasService.logActivity({
       user_id: null,
-      title: 'Data Absensi Dihapus',
-      description: `Sistem menghapus log absensi ID: ${id}`,
+      title: 'Data Presensi Dihapus',
+      description: `Sistem menghapus log presensi ID: ${id}`,
       type: 'system'
     });
     

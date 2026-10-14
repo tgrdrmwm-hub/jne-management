@@ -20,8 +20,20 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
     role VARCHAR(20) NOT NULL CHECK (role IN ('Owner', 'Developer', 'Staff')),
-    poin INT DEFAULT 0
+    poin INT DEFAULT 0,
+    no_telepon VARCHAR(20),
+    email_pribadi VARCHAR(100),
+    kontak_darurat_nama VARCHAR(100),
+    kontak_darurat_nomor VARCHAR(20),
+    kontak_darurat_hubungan VARCHAR(50) DEFAULT 'Keluarga'
 );
+
+-- Migrasi jika kolom belum ada di tabel users yang sudah berjalan
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS no_telepon VARCHAR(20);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_pribadi VARCHAR(100);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS kontak_darurat_nama VARCHAR(100);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS kontak_darurat_nomor VARCHAR(20);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS kontak_darurat_hubungan VARCHAR(50) DEFAULT 'Keluarga';
 
 -- 2. Tabel Absensi
 CREATE TABLE IF NOT EXISTS absensi (
@@ -67,6 +79,31 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE handle_new_user();
 
 -- ==========================================================
+-- FUNGSI RESET PASSWORD USER KE DEFAULT (123456)
+-- ==========================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION public.reset_user_password(target_user_id UUID, new_password TEXT DEFAULT '123456')
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, auth
+AS $$
+BEGIN
+  -- Update hash password ke 123456 di tabel auth.users menggunakan bcrypt
+  UPDATE auth.users
+  SET encrypted_password = crypt(new_password, gen_salt('bf')),
+      updated_at = now()
+  WHERE id = target_user_id;
+
+  RETURN TRUE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.reset_user_password(UUID, TEXT) TO authenticated, anon;
+NOTIFY pgrst, 'reload schema';
+
+-- ==========================================================
 -- ==========================================================
 -- 3. Tabel Laporan Harian
 -- ==========================================================
@@ -78,6 +115,8 @@ CREATE TABLE IF NOT EXISTS laporan_harian (
     kegiatan VARCHAR(255) NOT NULL,
     deskripsi TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Selesai',
+    bukti_foto TEXT,
+    nama_penerima VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
 );
 
@@ -150,4 +189,62 @@ DROP TRIGGER IF EXISTS trigger_sync_user_poin ON riwayat_poin;
 CREATE TRIGGER trigger_sync_user_poin
 AFTER INSERT OR UPDATE OR DELETE ON riwayat_poin
 FOR EACH ROW EXECUTE FUNCTION sync_user_poin();
+
+-- ==========================================================
+-- 7. Tabel Kalender Kegiatan
+-- ==========================================================
+DROP TABLE IF EXISTS kalender_kegiatan CASCADE;
+
+CREATE TABLE IF NOT EXISTS kalender_kegiatan (
+    id SERIAL PRIMARY KEY,
+    judul VARCHAR(200) NOT NULL,
+    kategori VARCHAR(50) NOT NULL DEFAULT 'Operasional',
+    tanggal_mulai DATE NOT NULL,
+    tanggal_selesai DATE,
+    jam_mulai TIME,
+    jam_selesai TIME,
+    seharian BOOLEAN DEFAULT false,
+    lokasi VARCHAR(150),
+    pic_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    pic_nama VARCHAR(100),
+    staff_terlibat JSONB DEFAULT '[]'::jsonb,
+    prioritas VARCHAR(20) DEFAULT 'Biasa' CHECK (prioritas IN ('Biasa', 'Penting', 'Mendesak')),
+    status VARCHAR(30) DEFAULT 'Rencana' CHECK (status IN ('Rencana', 'Berlangsung', 'Selesai', 'Dibatalkan')),
+    deskripsi TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+);
+
+ALTER TABLE kalender_kegiatan ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for kalender_kegiatan" ON kalender_kegiatan FOR ALL USING (true) WITH CHECK (true);
+
+-- ==========================================================
+-- 8. Tabel Penjualan & Omset JNE (Cash, Cashless, HPP & Komisi)
+-- ==========================================================
+DROP TABLE IF EXISTS penjualan_jne CASCADE;
+
+CREATE TABLE IF NOT EXISTS penjualan_jne (
+    id SERIAL PRIMARY KEY,
+    tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
+    waktu TIME DEFAULT CURRENT_TIME,
+    no_resi VARCHAR(50),
+    pelanggan VARCHAR(100) DEFAULT 'Pelanggan Counter',
+    layanan VARCHAR(30) DEFAULT 'REG',
+    tipe_transaksi VARCHAR(20) NOT NULL CHECK (tipe_transaksi IN ('Cash', 'Cashless')),
+    marketplace VARCHAR(50) DEFAULT 'None',
+    nilai_ongkir NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    komisi_persen NUMERIC(5, 2) NOT NULL DEFAULT 15,
+    komisi_nominal NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    hpp_pusat NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    kas_diterima NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    status_setor VARCHAR(30) DEFAULT 'Belum Setor',
+    catatan TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+);
+
+ALTER TABLE penjualan_jne ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for penjualan_jne" ON penjualan_jne FOR ALL USING (true) WITH CHECK (true);
+
+
 

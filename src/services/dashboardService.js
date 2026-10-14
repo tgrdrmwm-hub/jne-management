@@ -59,7 +59,7 @@ export const dashboardService = {
 
           return {
             id: index + 1,
-            text: `${a.users?.name || 'Karyawan'} melakukan absensi (${a.status})`,
+            text: `${a.users?.name || 'Karyawan'} melakukan presensi (${a.status})`,
             time: timeLabel,
             timestamp: timeMs
           };
@@ -73,7 +73,7 @@ export const dashboardService = {
         karyawanHadir: karyawanHadir || 0,
         karyawanIzin: karyawanIzin || 0,
         totalKaryawan: totalKaryawan || 0,
-        aktivitas: aktivitas.length > 0 ? aktivitas : [{ id: 1, text: 'Belum ada aktivitas', time: '' }],
+        aktivitas: aktivitas || [],
         weeklyAttendance
       };
     } catch (error) {
@@ -83,7 +83,7 @@ export const dashboardService = {
         karyawanHadir: 0,
         karyawanIzin: 0,
         totalKaryawan: 0,
-        aktivitas: [{ id: 1, text: 'Belum ada aktivitas', time: '' }],
+        aktivitas: [],
         weeklyAttendance: fallbackWeekly
       };
     }

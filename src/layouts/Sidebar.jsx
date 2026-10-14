@@ -5,10 +5,11 @@ import {
   BarChart3,
   Users,
   X,
-  ChevronRight,
   ClipboardList,
   ClipboardCheck,
-  Coins
+  Coins,
+  CalendarDays,
+  Receipt
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useSelector } from 'react-redux';
@@ -16,7 +17,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
-  { path: '/absensi', name: 'Absensi', icon: UserCheck },
+  { path: '/omset', name: 'Omset & Keuangan', icon: Receipt },
+  { path: '/absensi', name: 'Presensi', icon: UserCheck },
+  { path: '/kalender', name: 'Kalender Kegiatan', icon: CalendarDays },
   { path: '/laporan-harian', name: 'Laporan Harian', icon: ClipboardList },
   { path: '/laporan-staff', name: 'Laporan Staff', icon: ClipboardCheck, roles: ['Owner', 'Developer'] },
   { path: '/poin', name: 'Poin Karyawan', icon: Coins },

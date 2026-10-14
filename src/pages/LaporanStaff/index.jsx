@@ -21,7 +21,9 @@ import {
   List,
   RefreshCw,
   X,
-  Award
+  Award,
+  Camera,
+  Image
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
@@ -59,7 +61,7 @@ const LaporanStaff = () => {
         icon: 'error',
         title: 'Gagal Memuat Data',
         text: error.message || 'Terjadi kesalahan saat memuat data laporan staff.',
-        customClass: { popup: 'rounded-3xl' }
+        customClass: { popup: 'rounded-2xl' }
       });
     } finally {
       setLoading(false);
@@ -136,7 +138,7 @@ const LaporanStaff = () => {
       cancelButtonColor: '#6b7280',
       confirmButtonText: 'Ya, Hapus',
       cancelButtonText: 'Batal',
-      customClass: { popup: 'rounded-3xl' }
+      customClass: { popup: 'rounded-2xl' }
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
@@ -147,7 +149,7 @@ const LaporanStaff = () => {
             text: 'Laporan dan riwayat poin terkait berhasil dihapus.',
             timer: 2000,
             showConfirmButton: false,
-            customClass: { popup: 'rounded-3xl' }
+            customClass: { popup: 'rounded-2xl' }
           });
           if (detailModal?.id === id) setDetailModal(null);
           fetchData();
@@ -156,7 +158,7 @@ const LaporanStaff = () => {
             icon: 'error',
             title: 'Gagal Menghapus',
             text: error.message,
-            customClass: { popup: 'rounded-3xl' }
+            customClass: { popup: 'rounded-2xl' }
           });
         }
       }
@@ -243,19 +245,17 @@ const LaporanStaff = () => {
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header Banner */}
       <motion.div 
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center relative overflow-hidden"
+        className="bg-white rounded-2xl p-6 md:p-8 shadow-xs border border-slate-200/90 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center relative"
       >
-        <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/5 rounded-full blur-3xl -mr-36 -mt-36 pointer-events-none"></div>
-        
-        <div className="flex gap-5 items-center relative z-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-500/25 text-white">
-            <ClipboardCheck size={32} />
+        <div className="flex gap-4 items-center">
+          <div className="w-14 h-14 rounded-xl bg-slate-900 flex items-center justify-center text-white border border-slate-800 shrink-0">
+            <ClipboardCheck size={28} className="text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Monitoring Laporan Staff</h1>
-            <p className="text-slate-500 mt-1">Pantau, tinjau, dan kelola seluruh laporan kegiatan operasional staff JNE</p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Monitoring Laporan Staff</h1>
+            <p className="text-slate-500 text-xs mt-0.5">Pantau, tinjau, dan kelola seluruh laporan kegiatan operasional staff JNE</p>
           </div>
         </div>
 
@@ -452,17 +452,17 @@ const LaporanStaff = () => {
 
       {/* Main Content Area */}
       {loading ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-sm text-slate-400">
-          <RefreshCw size={32} className="animate-spin mx-auto text-blue-500 mb-3" />
-          <p className="font-medium text-slate-600">Memuat laporan staff...</p>
+        <div className="bg-white rounded-2xl p-16 text-center border border-slate-200/90 shadow-xs text-slate-400">
+          <RefreshCw size={28} className="animate-spin mx-auto text-blue-600 mb-3" />
+          <p className="font-semibold text-slate-700 text-sm">Memuat laporan staff...</p>
         </div>
       ) : filteredReports.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-sm space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-slate-50 text-slate-300 flex items-center justify-center mx-auto">
-            <ClipboardCheck size={32} />
+        <div className="bg-white rounded-2xl p-16 text-center border border-slate-200/90 shadow-xs space-y-3">
+          <div className="w-14 h-14 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+            <ClipboardCheck size={28} />
           </div>
-          <h3 className="text-lg font-bold text-slate-700">Tidak ada laporan yang ditemukan</h3>
-          <p className="text-slate-400 text-sm max-w-md mx-auto">
+          <h3 className="text-base font-bold text-slate-800">Tidak ada laporan yang ditemukan</h3>
+          <p className="text-slate-500 text-xs max-w-md mx-auto">
             Belum ada laporan yang sesuai dengan kriteria pencarian atau filter yang Anda pilih.
           </p>
         </div>
@@ -482,9 +482,9 @@ const LaporanStaff = () => {
               <motion.div
                 key={report.id}
                 layout
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group"
               >
                 <div className="space-y-4">
                   {/* Card Header: Author & Status */}
@@ -559,7 +559,7 @@ const LaporanStaff = () => {
         </div>
       ) : (
         /* TABLE VIEW */
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -640,12 +640,12 @@ const LaporanStaff = () => {
       {/* DETAIL MODAL */}
       <AnimatePresence>
         {detailModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.98, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-100"
+              exit={{ opacity: 0, scale: 0.98, y: 12 }}
+              className="bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200/90"
             >
               {/* Modal Header */}
               <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
@@ -714,10 +714,34 @@ const LaporanStaff = () => {
 
                 <div>
                   <span className="text-xs font-semibold text-slate-400 block mb-2">Deskripsi Detail</span>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-line max-h-64 overflow-y-auto">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto">
                     {detailModal.deskripsi}
                   </div>
                 </div>
+
+                {/* Bukti Foto Penerimaan (POD) */}
+                {detailModal.bukti_foto && (
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Camera size={14} className="text-blue-600" />
+                        <span>Foto Bukti Kegiatan / Dokumentasi</span>
+                      </span>
+                      {detailModal.nama_penerima && (
+                        <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                          Ket / Penerima: {detailModal.nama_penerima}
+                        </span>
+                      )}
+                    </div>
+                    <div className="rounded-xl overflow-hidden border border-slate-200 max-h-64 bg-slate-900 flex items-center justify-center p-2">
+                      <img
+                        src={detailModal.bukti_foto}
+                        alt="Bukti Pengiriman"
+                        className="max-h-60 max-w-full object-contain rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}

@@ -113,17 +113,8 @@ const Login = () => {
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm20 20h20v20H20V20zM0 20h20v20H0V20z' fill='%23ffffff' fill-rule='evenodd'/%3E%3C/svg%3E")`
         }} />
 
-        {/* Animated Orbs */}
-        <motion.div 
-          animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/4 -left-32 w-[30rem] h-[30rem] bg-blue-500 rounded-full blur-[120px]" 
-        />
-        <motion.div 
-          animate={{ scale: [1, 1.3, 1], opacity: [0.05, 0.1, 0.05] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-          className="absolute bottom-0 right-0 w-[40rem] h-[40rem] bg-red-600 rounded-full blur-[150px]" 
-        />
+        {/* Architectural subtle ambient accent */}
+        <div className="absolute inset-0 bg-radial-gradient from-blue-900/30 via-slate-900/10 to-transparent pointer-events-none" />
 
         <div className="relative z-10 p-16 flex flex-col justify-between h-full w-full max-w-2xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

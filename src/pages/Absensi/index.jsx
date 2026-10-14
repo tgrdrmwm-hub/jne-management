@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
-import { Table, Thead, Tbody, Tr, Th, Td, TableHeader } from '../../components/ui/Table';
+import { Table, Thead, Tbody, Tr, Th, Td } from '../../components/ui/Table';
 import { Button } from '../../components/ui/Button';
 import { absensiService } from '../../services/absensiService';
 import { staffService } from '../../services/staffService';
@@ -45,8 +45,8 @@ const Absensi = () => {
       const result = await absensiService.getAll();
       setData(result);
     } catch (error) {
-      console.error('Error fetching absensi:', error);
-      Swal.fire({ title: 'Error', text: 'Gagal mengambil data absensi', icon: 'error' });
+      console.error('Error fetching presensi:', error);
+      Swal.fire({ title: 'Error', text: 'Gagal mengambil data presensi', icon: 'error' });
     } finally {
       setLoading(false);
     }
@@ -67,11 +67,11 @@ const Absensi = () => {
     try {
       const clockInData = await absensiService.clockIn(currentUser.id);
       
-      // Tambah poin absen (tertaut absensiId untuk cascade)
+      // Tambah poin presensi (tertaut absensiId untuk cascade)
       await poinService.addPoin(
         currentUser.id, 
         10, 
-        'Absen Tepat Waktu (Clock In)',
+        'Presensi Tepat Waktu (Clock In)',
         { absensiId: clockInData?.id }
       );
 
@@ -119,7 +119,7 @@ const Absensi = () => {
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text("Laporan Absensi Karyawan", 14, 15);
+    doc.text("Laporan Presensi Karyawan", 14, 15);
     doc.setFontSize(10);
     doc.text(`Tanggal cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 22);
     doc.autoTable({
@@ -129,14 +129,14 @@ const Absensi = () => {
       styles: { fontSize: 9 },
       headStyles: { fillColor: [0, 74, 141] },
     });
-    doc.save("Laporan_Absensi.pdf");
+    doc.save("Laporan_Presensi.pdf");
   };
 
   const handleExportExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filteredData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Absensi");
-    XLSX.writeFile(workbook, "Laporan_Absensi.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Presensi");
+    XLSX.writeFile(workbook, "Laporan_Presensi.xlsx");
   };
 
   const handleManualAbsensi = async () => {
@@ -153,7 +153,7 @@ const Absensi = () => {
       const today = new Date().toISOString().split('T')[0];
 
       const { value: formValues } = await Swal.fire({
-        title: 'Absensi Manual',
+        title: 'Presensi Manual',
         html: `
           <div class="space-y-4 text-left font-['Inter',system-ui,sans-serif]">
             <div>
@@ -229,7 +229,7 @@ const Absensi = () => {
           await poinService.addPoin(
             formValues.karyawan_id, 
             10, 
-            'Absensi Manual (Hadir)',
+            'Presensi Manual (Hadir)',
             { absensiId: savedAbsensi?.id }
           );
         }
@@ -238,12 +238,12 @@ const Absensi = () => {
           await poinService.addPoin(
             formValues.karyawan_id, 
             -5, 
-            'Absensi Manual (Terlambat)',
+            'Presensi Manual (Terlambat)',
             { absensiId: savedAbsensi?.id }
           );
         }
 
-        Swal.fire({ icon: 'success', title: 'Berhasil', html: `Absensi manual berhasil disimpan${poinText}`, timer: 2000, showConfirmButton: false, customClass: { popup: 'rounded-2xl' } });
+        Swal.fire({ icon: 'success', title: 'Berhasil', html: `Presensi manual berhasil disimpan${poinText}`, timer: 2000, showConfirmButton: false, customClass: { popup: 'rounded-2xl' } });
         fetchData();
       }
     } catch (error) {
@@ -253,7 +253,7 @@ const Absensi = () => {
 
   const handleDelete = (id) => {
     Swal.fire({
-      title: 'Hapus Data Absensi?',
+      title: 'Hapus Data Presensi?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
       icon: 'warning',
       showCancelButton: true,
@@ -266,7 +266,7 @@ const Absensi = () => {
       if (result.isConfirmed) {
         try {
           await absensiService.deleteAbsensi(id);
-          Swal.fire({ icon: 'success', title: 'Terhapus!', text: 'Data absensi berhasil dihapus.', customClass: { popup: 'rounded-2xl' } });
+          Swal.fire({ icon: 'success', title: 'Terhapus!', text: 'Data presensi berhasil dihapus.', customClass: { popup: 'rounded-2xl' } });
           fetchData(); // Refresh table
         } catch (error) {
           Swal.fire({ icon: 'error', title: 'Gagal', text: error.message, customClass: { popup: 'rounded-2xl' } });
@@ -284,7 +284,7 @@ const Absensi = () => {
             <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
               <UserCheck size={20} className="text-white" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Absensi Karyawan</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900">Presensi Karyawan</h1>
           </div>
           <p className="text-gray-500 text-sm ml-12">Catat kehadiran dan pantau jam kerja</p>
         </motion.div>
@@ -339,7 +339,7 @@ const Absensi = () => {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
-              <Button size="sm" icon={PlusCircle} onClick={handleManualAbsensi} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-transparent">Absensi Manual</Button>
+              <Button size="sm" icon={PlusCircle} onClick={handleManualAbsensi} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-transparent">Presensi Manual</Button>
               {['Owner', 'Developer'].includes(currentUser.role) && (
                 <>
                   <Button variant="outline" size="sm" icon={FileText} onClick={handleExportPDF} className="w-full sm:w-auto">Export PDF</Button>
@@ -363,12 +363,12 @@ const Absensi = () => {
             </Thead>
             <Tbody>
               {loading ? (
-                <Tr><Td colSpan={6} className="text-center py-12 text-gray-400">Memuat data absensi...</Td></Tr>
+                <Tr><Td colSpan={6} className="text-center py-12 text-gray-400">Memuat data presensi...</Td></Tr>
               ) : filteredData.length === 0 ? (
                 <Tr><Td colSpan={6} className="text-center py-12 text-gray-400 text-base">
                   <div className="flex flex-col items-center gap-2">
                     <UserCheck size={40} className="text-gray-300" />
-                    <p className="font-semibold">Tidak ada data absensi</p>
+                    <p className="font-semibold">Tidak ada data presensi</p>
                   </div>
                 </Td></Tr>
               ) : (
@@ -405,7 +405,7 @@ const Absensi = () => {
                         <button 
                           onClick={() => handleDelete(item.id)}
                           className="p-2 text-slate-400 hover:text-[var(--color-jne-red)] hover:bg-red-50 rounded-lg transition-colors inline-flex"
-                          title="Hapus Absensi"
+                          title="Hapus Presensi"
                         >
                           <Trash2 size={16} />
                         </button>
