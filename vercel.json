@@ -26,8 +26,12 @@
           "value": "camera=(), microphone=(), geolocation=(), browsing-topics=()"
         },
         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://jne.ajscompany.id"
+        },
+        {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mailersend.com https://*.cloudflare.com https://*.vercel.app; frame-ancestors 'self'; object-src 'none'; base-uri 'self';"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mailersend.com https://*.cloudflare.com https://*.vercel.app; frame-ancestors 'self'; object-src 'none'; base-uri 'self';"
         }
       ]
     }
