@@ -1,20 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
 import { authService } from '../../services/authService';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { User, Lock, LogIn, ArrowRight, Package, Truck, Globe } from 'lucide-react';
+import { User, Lock, ArrowRight, Package, Truck, Globe, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    if (location.state?.email) {
+      setEmail(location.state.email);
+    }
+  }, [location.state]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -185,24 +193,39 @@ const Login = () => {
             <div className="space-y-5">
               <Input
                 icon={User}
-                label="Email"
-                placeholder="misal: owner@umaratax.com"
+                label="Email atau Username"
+                placeholder="misal: owner atau owner@umaratax.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="!py-3 !bg-gray-50/50 focus:!bg-white !rounded-xl"
                 required
               />
               
-              <Input
-                icon={Lock}
-                type="password"
-                label="Password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="!py-3 !bg-gray-50/50 focus:!bg-white !rounded-xl"
-                required
-              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-gray-700 block">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-gray-50/50 focus:bg-white px-4 py-3 pl-10 pr-11 text-sm transition-all focus:outline-none focus:border-[var(--color-jne-blue)] focus:ring-4 focus:ring-[var(--color-jne-blue)]/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <Button 
@@ -226,6 +249,20 @@ const Login = () => {
               )}
             </Button>
           </form>
+
+          {/* Navigasi Sign Up */}
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+            <p className="text-sm text-slate-600">
+              Belum memiliki akun operasional?{' '}
+              <Link 
+                to="/register" 
+                className="font-bold text-[var(--color-jne-blue)] hover:text-blue-700 hover:underline transition-colors inline-flex items-center gap-1.5"
+              >
+                <UserPlus size={15} />
+                Daftar Akun Baru
+              </Link>
+            </p>
+          </div>
 
 
         </motion.div>

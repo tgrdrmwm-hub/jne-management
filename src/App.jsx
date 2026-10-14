@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { supabase } from './lib/supabase';
 import { logout } from './store/authSlice';
+import { autoReminderService } from './services/autoReminderService';
 
 function App() {
   const dispatch = useDispatch();
@@ -23,8 +24,12 @@ function App() {
       }
     });
 
+    // Jalankan scheduler otomatis pengingat kalender H-3 di latar belakang
+    const stopReminderScheduler = autoReminderService.startAutoScheduler();
+
     return () => {
       subscription?.unsubscribe();
+      stopReminderScheduler?.();
     };
   }, [dispatch]);
 

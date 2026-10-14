@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AdminLayout from '../layouts/AdminLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import Login from '../pages/Login';
+import Register from '../pages/Register';
 import Dashboard from '../pages/Dashboard';
 import Absensi from '../pages/Absensi';
 import Laporan from '../pages/Laporan';
@@ -23,6 +24,20 @@ export const router = createBrowserRouter([
         element: <Login />,
       },
     ],
+  },
+  {
+    path: '/register',
+    element: <AuthLayout />,
+    children: [
+      {
+        path: '',
+        element: <Register />,
+      },
+    ],
+  },
+  {
+    path: '/signup',
+    element: <Navigate to="/register" replace />,
   },
   {
     path: '/',
