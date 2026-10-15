@@ -38,8 +38,30 @@ export const poinService = {
     return data;
   },
 
+  // Status apakah sistem poin otomatis aktif (sementara dinolkan/ditangguhkan)
+  isPoinEnabled() {
+    return false; // Skema dinolkan sementara karena masih dalam perumusan ulang
+  },
+
+  // Reset semua poin user ke 0 dan bersihkan riwayat
+  async resetAllPoin() {
+    try {
+      await supabase.from('riwayat_poin').delete().neq('id', 0);
+      await supabase.from('users').update({ poin: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+      return true;
+    } catch (e) {
+      console.error('Error resetting poin:', e);
+      throw e;
+    }
+  },
+
   // Add points to user
   async addPoin(userId, jumlahPoin, keterangan, options = {}) {
+    // Jika skema poin dinonaktifkan sementara, langsung kembalikan 0 agar poin tetap 0
+    if (!this.isPoinEnabled()) {
+      return 0;
+    }
+
     try {
       // 1. Catat ke riwayat
       const insertPayload = {

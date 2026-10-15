@@ -214,6 +214,10 @@ CREATE TRIGGER trigger_sync_user_poin
 AFTER INSERT OR UPDATE OR DELETE ON public.riwayat_poin
 FOR EACH ROW EXECUTE FUNCTION sync_user_poin();
 
+-- Reset seluruh saldo poin ke 0 & bersihkan riwayat mutasi poin
+DELETE FROM public.riwayat_poin;
+UPDATE public.users SET poin = 0;
+
 -- ==========================================================
 -- 10. Trigger Otomatis User Baru dari Supabase Auth
 -- ==========================================================

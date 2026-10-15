@@ -75,13 +75,13 @@ const Poin = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sistem Poin & Apresiasi Karyawan</h1>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                <Sparkles size={11} className="text-amber-600" />
-                Aktif
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                <Clock size={11} className="text-slate-500" />
+                Poin Dinolkan Sementara
               </span>
             </div>
             <p className="text-slate-500 text-xs mt-0.5">
-              Akumulasi poin otomatis dari presensi tepat waktu dan penyelesaian laporan kerja harian
+              Seluruh saldo poin karyawan saat ini dinolkan (0 PTS) sementara skema perhitungan sedang dalam perumusan ulang
             </p>
           </div>
         </div>

@@ -132,18 +132,21 @@ const Absensi = () => {
       const clockInData = await absensiService.clockIn(currentUser.id, chosenShiftLabel);
       
       const isLate = clockInData.status === 'Terlambat';
-      const poinAmount = isLate ? -5 : 10;
-      const poinDesc = isLate 
-        ? `Presensi Terlambat [${chosenShiftLabel}] (Clock In)` 
-        : `Presensi Tepat Waktu [${chosenShiftLabel}] (Clock In)`;
+      const isPoinActive = poinService.isPoinEnabled();
+      if (isPoinActive) {
+        const poinAmount = isLate ? -5 : 10;
+        const poinDesc = isLate 
+          ? `Presensi Terlambat [${chosenShiftLabel}] (Clock In)` 
+          : `Presensi Tepat Waktu [${chosenShiftLabel}] (Clock In)`;
 
-      // Catat perolehan poin
-      await poinService.addPoin(
-        currentUser.id, 
-        poinAmount, 
-        poinDesc,
-        { absensiId: clockInData?.id }
-      );
+        // Catat perolehan poin jika skema aktif
+        await poinService.addPoin(
+          currentUser.id, 
+          poinAmount, 
+          poinDesc,
+          { absensiId: clockInData?.id }
+        );
+      }
 
       Swal.fire({
         icon: 'success',
@@ -156,11 +159,13 @@ const Absensi = () => {
               <p><b>Jam Masuk:</b> ${clockInData.jamMasuk} WIB</p>
               <p><b>Status Kehadiran:</b> <span class="${isLate ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold'}">${clockInData.status}</span></p>
             </div>
-            <div>
-              ${isLate 
-                ? '<span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)' 
-                : '<span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Tepat Waktu)'}
-            </div>
+            ${isPoinActive ? `
+              <div>
+                ${isLate 
+                  ? '<span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)' 
+                  : '<span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Tepat Waktu)'}
+              </div>
+            ` : ''}
           </div>
         `,
         timer: 3000,
@@ -404,23 +409,25 @@ const Absensi = () => {
         const savedAbsensi = await absensiService.addManual(formValues);
         
         let poinText = '';
-        if (formValues.status === 'Hadir') {
-          poinText = '<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)';
-          await poinService.addPoin(
-            formValues.karyawan_id, 
-            10, 
-            `Presensi Manual [${formValues.shift}] (Hadir)`,
-            { absensiId: savedAbsensi?.id }
-          );
-        }
-        else if (formValues.status === 'Terlambat') {
-          poinText = '<br/><br/><span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)';
-          await poinService.addPoin(
-            formValues.karyawan_id, 
-            -5, 
-            `Presensi Manual [${formValues.shift}] (Terlambat)`,
-            { absensiId: savedAbsensi?.id }
-          );
+        if (poinService.isPoinEnabled()) {
+          if (formValues.status === 'Hadir') {
+            poinText = '<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)';
+            await poinService.addPoin(
+              formValues.karyawan_id, 
+              10, 
+              `Presensi Manual [${formValues.shift}] (Hadir)`,
+              { absensiId: savedAbsensi?.id }
+            );
+          }
+          else if (formValues.status === 'Terlambat') {
+            poinText = '<br/><br/><span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)';
+            await poinService.addPoin(
+              formValues.karyawan_id, 
+              -5, 
+              `Presensi Manual [${formValues.shift}] (Terlambat)`,
+              { absensiId: savedAbsensi?.id }
+            );
+          }
         }
 
         Swal.fire({ 
