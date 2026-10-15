@@ -1132,12 +1132,16 @@ const LaporanHarian = () => {
       {/* LIGHTBOX MODAL: PREVIEW FOTO BUKTI PENGIRIMAN (POD) */}
       <AnimatePresence>
         {previewPhotoData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div 
+            onClick={() => setPreviewPhotoData(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto cursor-pointer"
+          >
             <motion.div
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200/90 my-auto"
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200/90 my-auto cursor-default"
             >
               <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
                 <div className="flex items-center gap-2">

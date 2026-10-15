@@ -76,6 +76,17 @@ const LaporanStaff = () => {
     return () => window.removeEventListener('laporanUpdated', handleUpdate);
   }, [fetchData]);
 
+  // Handle close modal with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setDetailModal(null);
+    };
+    if (detailModal) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [detailModal]);
+
   // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
@@ -640,55 +651,61 @@ const LaporanStaff = () => {
       {/* DETAIL MODAL */}
       <AnimatePresence>
         {detailModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+          <div 
+            onClick={() => setDetailModal(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto"
+          >
             <motion.div
+              onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.98, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 12 }}
-              className="bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200/90"
+              className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200/90 flex flex-col max-h-[90vh] my-auto"
             >
               {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
+              <div className="shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-blue-500/20">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-md shadow-blue-500/20 shrink-0">
                     {detailModal.users?.name?.charAt(0) || 'S'}
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 text-base leading-tight">
+                    <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">
                       {detailModal.users?.name || 'Staff'}
                     </h3>
-                    <p className="text-xs text-slate-400 capitalize mt-0.5">
+                    <p className="text-[11px] text-slate-400 capitalize mt-0.5">
                       Role: {detailModal.users?.role || 'Staff'}
                     </p>
                   </div>
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setDetailModal(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                  title="Tutup (Esc)"
                 >
                   <X size={20} />
                 </button>
               </div>
 
               {/* Modal Body */}
-              <div className="p-6 space-y-5">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                 <div>
-                  <span className="text-xs font-semibold text-slate-400 block mb-1">Nama Kegiatan</span>
-                  <h2 className="text-lg font-bold text-slate-800">{detailModal.kegiatan}</h2>
+                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">Nama Kegiatan</span>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-800 leading-snug">{detailModal.kegiatan}</h2>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 py-3 px-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                <div className="flex flex-wrap items-center gap-4 py-3 px-4 bg-slate-50 rounded-xl border border-slate-100 text-xs">
                   <div>
-                    <span className="text-slate-400 block">Status:</span>
-                    <div className="mt-1">{getStatusBadge(detailModal.status)}</div>
+                    <span className="text-slate-400 block text-[11px]">Status:</span>
+                    <div className="mt-0.5">{getStatusBadge(detailModal.status)}</div>
                   </div>
 
-                  <div className="h-8 w-px bg-slate-200"></div>
+                  <div className="h-7 w-px bg-slate-200"></div>
 
                   <div>
-                    <span className="text-slate-400 block">Waktu Submit:</span>
-                    <span className="font-semibold text-slate-700 mt-1 block">
+                    <span className="text-slate-400 block text-[11px]">Waktu Submit:</span>
+                    <span className="font-semibold text-slate-700 mt-0.5 block">
                       {new Date(detailModal.created_at).toLocaleString('id-ID', {
                         day: 'numeric',
                         month: 'short',
@@ -701,11 +718,11 @@ const LaporanStaff = () => {
 
                   {detailModal.status === 'Selesai' && (
                     <>
-                      <div className="h-8 w-px bg-slate-200"></div>
+                      <div className="h-7 w-px bg-slate-200"></div>
                       <div>
-                        <span className="text-slate-400 block">Reward Poin:</span>
-                        <span className="font-bold text-amber-500 mt-1 block flex items-center gap-1">
-                          <Award size={14} /> +5 PTS
+                        <span className="text-slate-400 block text-[11px]">Reward Poin:</span>
+                        <span className="font-bold text-amber-500 mt-0.5 block flex items-center gap-1">
+                          <Award size={13} /> +5 PTS
                         </span>
                       </div>
                     </>
@@ -713,15 +730,15 @@ const LaporanStaff = () => {
                 </div>
 
                 <div>
-                  <span className="text-xs font-semibold text-slate-400 block mb-2">Deskripsi Detail</span>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto">
+                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">Deskripsi Detail</span>
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line max-h-40 overflow-y-auto">
                     {detailModal.deskripsi}
                   </div>
                 </div>
 
                 {/* Bukti Foto Penerimaan (POD) */}
                 {detailModal.bukti_foto && (
-                  <div className="pt-2">
+                  <div className="pt-1">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <Camera size={14} className="text-blue-600" />
@@ -733,11 +750,11 @@ const LaporanStaff = () => {
                         </span>
                       )}
                     </div>
-                    <div className="rounded-xl overflow-hidden border border-slate-200 max-h-64 bg-slate-900 flex items-center justify-center p-2">
+                    <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center p-2 max-h-72">
                       <img
                         src={detailModal.bukti_foto}
                         alt="Bukti Pengiriman"
-                        className="max-h-60 max-w-full object-contain rounded-lg"
+                        className="max-h-68 max-w-full object-contain rounded-lg"
                       />
                     </div>
                   </div>
@@ -745,12 +762,13 @@ const LaporanStaff = () => {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+              <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
                 <div>
                   {canDelete(detailModal) && (
                     <button
+                      type="button"
                       onClick={() => handleDelete(detailModal.id, detailModal.kegiatan, detailModal.status)}
-                      className="px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Trash2 size={15} />
                       <span>Hapus Laporan</span>
@@ -759,8 +777,9 @@ const LaporanStaff = () => {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setDetailModal(null)}
-                  className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition-colors"
+                  className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs"
                 >
                   Tutup
                 </button>
