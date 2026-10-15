@@ -77,11 +77,13 @@ export const laporanHarianService = {
 
   // Kirim laporan baru
   async createReport({ userId, userName, kegiatan, deskripsi, status, buktiFoto, namaPenerima }) {
+    const nowIso = new Date().toISOString();
     const payload = {
       user_id: userId,
       kegiatan,
       deskripsi,
       status: status || 'Selesai',
+      created_at: nowIso,
     };
     if (buktiFoto) payload.bukti_foto = buktiFoto;
     if (namaPenerima) payload.nama_penerima = namaPenerima;
@@ -100,6 +102,7 @@ export const laporanHarianService = {
         kegiatan,
         deskripsi,
         status: status || 'Selesai',
+        created_at: nowIso,
       };
       const fallback = await supabase
         .from('laporan_harian')

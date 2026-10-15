@@ -37,7 +37,7 @@ const Poin = () => {
         setLeaderboard(leader);
         setHistory(hist.map(h => ({
           ...h,
-          tanggal: new Date(h.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          tanggal: new Date(h.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
           type: h.jumlah_poin > 0 ? 'plus' : 'minus',
           jumlah: h.jumlah_poin > 0 ? `+${h.jumlah_poin}` : h.jumlah_poin
         })));

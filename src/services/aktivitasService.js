@@ -33,11 +33,13 @@ export const aktivitasService = {
 
   // Tambah log aktivitas
   async logActivity({ user_id, absensi_id, laporan_id, title, description, type }) {
+    const nowIso = new Date().toISOString();
     const payload = {
       user_id: user_id || null,
       title,
       description,
       type,
+      created_at: nowIso,
     };
     if (absensi_id) payload.absensi_id = absensi_id;
     if (laporan_id) payload.laporan_id = laporan_id;
@@ -53,6 +55,7 @@ export const aktivitasService = {
         title,
         description,
         type,
+        created_at: nowIso,
       });
       error = null;
     }

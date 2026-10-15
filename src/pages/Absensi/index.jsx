@@ -503,10 +503,10 @@ const Absensi = () => {
               {/* Jam Digital Real-time */}
               <div className="text-center sm:text-left">
                 <p className="text-[11px] font-bold tracking-wider uppercase text-slate-500 mb-0.5">
-                  {currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  {currentTime.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
                 <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-mono tabular-nums">
-                  {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                  {currentTime.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                   <span className="text-xs font-semibold text-slate-400 ml-1.5 font-sans">WIB</span>
                 </div>
               </div>

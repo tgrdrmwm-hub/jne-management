@@ -178,7 +178,7 @@ const Dashboard = () => {
 
           <div className="text-xs font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl flex items-center gap-2 border border-slate-200/90 shadow-xs">
             <Clock size={13} className="text-blue-600" />
-            <span>{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span>{new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </div>
       </motion.div>

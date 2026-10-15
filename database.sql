@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.laporan_harian (
     status VARCHAR(50) NOT NULL DEFAULT 'Selesai',
     bukti_foto TEXT,
     nama_penerima VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- ==========================================================
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.aktivitas (
     title VARCHAR(100) NOT NULL,
     description TEXT NOT NULL,
     type VARCHAR(50) NOT NULL, -- 'absen', 'laporan', 'system', 'user'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- ==========================================================
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS public.riwayat_poin (
     laporan_id INT REFERENCES public.laporan_harian(id) ON DELETE CASCADE,
     jumlah_poin INT NOT NULL,
     keterangan VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- ==========================================================
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS public.kalender_kegiatan (
     status VARCHAR(30) DEFAULT 'Rencana' CHECK (status IN ('Rencana', 'Berlangsung', 'Selesai', 'Dibatalkan')),
     deskripsi TEXT,
     created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- ==========================================================
@@ -146,8 +146,15 @@ CREATE TABLE IF NOT EXISTS public.penjualan_jne (
     status_setor VARCHAR(30) DEFAULT 'Belum Setor',
     catatan TEXT,
     created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('Asia/Jakarta', now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+-- Migrasi default timestamp: pastikan timestamptz memakai now() murni UTC (menghindari duplikasi offset +7 jam)
+ALTER TABLE public.laporan_harian ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE public.aktivitas ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE public.riwayat_poin ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE public.kalender_kegiatan ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE public.penjualan_jne ALTER COLUMN created_at SET DEFAULT now();
 
 -- ==========================================================
 -- 8. Row Level Security (RLS) & Policies

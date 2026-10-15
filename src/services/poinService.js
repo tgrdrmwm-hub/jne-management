@@ -63,11 +63,12 @@ export const poinService = {
     }
 
     try {
-      // 1. Catat ke riwayat
+      const nowIso = new Date().toISOString();
       const insertPayload = {
         user_id: userId,
         jumlah_poin: jumlahPoin,
-        keterangan: keterangan
+        keterangan: keterangan,
+        created_at: nowIso,
       };
       if (options?.absensiId) insertPayload.absensi_id = options.absensiId;
       if (options?.laporanId) insertPayload.laporan_id = options.laporanId;
@@ -84,7 +85,8 @@ export const poinService = {
           .insert({
             user_id: userId,
             jumlah_poin: jumlahPoin,
-            keterangan: keterangan
+            keterangan: keterangan,
+            created_at: nowIso,
           });
         if (fallbackError) throw fallbackError;
       } else if (historyError) {

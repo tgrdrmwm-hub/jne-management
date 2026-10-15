@@ -6,8 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ClipboardCheck, 
   Search, 
-  Filter, 
-  Download, 
   FileSpreadsheet, 
   FileText, 
   Trash2, 
@@ -15,15 +13,13 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  User, 
   Calendar,
   LayoutGrid,
   List,
   RefreshCw,
   X,
   Award,
-  Camera,
-  Image
+  Camera
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
@@ -103,21 +99,23 @@ const LaporanStaff = () => {
       // 3. Staff filter
       const matchesStaff = selectedStaff === 'Semua' || r.user_id === selectedStaff;
 
-      // 4. Date filter
+      // 4. Date filter (menggunakan zona waktu WIB Asia/Jakarta agar akurat)
       let matchesDate = true;
       if (dateRange !== 'Semua') {
         const reportDate = new Date(r.created_at);
+        const reportDateStr = reportDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const now = new Date();
+        const nowDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+
         if (dateRange === 'Hari Ini') {
-          matchesDate = reportDate.toDateString() === now.toDateString();
+          matchesDate = reportDateStr === nowDateStr;
         } else if (dateRange === '7 Hari') {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(now.getDate() - 7);
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           matchesDate = reportDate >= sevenDaysAgo;
         } else if (dateRange === 'Bulan Ini') {
-          matchesDate = 
-            reportDate.getMonth() === now.getMonth() && 
-            reportDate.getFullYear() === now.getFullYear();
+          const reportMonth = reportDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta', month: '2-digit', year: 'numeric' });
+          const nowMonth = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta', month: '2-digit', year: 'numeric' });
+          matchesDate = reportMonth === nowMonth;
         }
       }
 
@@ -182,11 +180,11 @@ const LaporanStaff = () => {
     doc.setFontSize(16);
     doc.text("Laporan Kegiatan Operasional Staff JNE", 14, 15);
     doc.setFontSize(10);
-    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
+    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`, 14, 22);
 
     const tableData = filteredReports.map((r, i) => [
       i + 1,
-      new Date(r.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      new Date(r.created_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
       r.users?.name || 'Staff',
       r.kegiatan,
       r.status,
@@ -201,14 +199,15 @@ const LaporanStaff = () => {
       headStyles: { fillColor: [15, 23, 42] }
     });
 
-    doc.save(`Laporan_Staff_JNE_${new Date().toISOString().split('T')[0]}.pdf`);
+    const fileDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    doc.save(`Laporan_Staff_JNE_${fileDate}.pdf`);
   };
 
   // Export Excel
   const handleExportExcel = () => {
     const worksheetData = filteredReports.map((r, i) => ({
       No: i + 1,
-      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID'),
+      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
       'Nama Staff': r.users?.name || '-',
       'Role': r.users?.role || '-',
       'Nama Kegiatan': r.kegiatan,
@@ -219,7 +218,8 @@ const LaporanStaff = () => {
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Staff");
-    XLSX.writeFile(workbook, `Laporan_Staff_JNE_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const fileDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    XLSX.writeFile(workbook, `Laporan_Staff_JNE_${fileDate}.xlsx`);
   };
 
   const canDelete = (report) => {
@@ -482,6 +482,7 @@ const LaporanStaff = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredReports.map((report) => {
             const dateStr = new Date(report.created_at).toLocaleDateString('id-ID', {
+              timeZone: 'Asia/Jakarta',
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -587,6 +588,7 @@ const LaporanStaff = () => {
               <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                 {filteredReports.map((report, idx) => {
                   const dateStr = new Date(report.created_at).toLocaleDateString('id-ID', {
+                    timeZone: 'Asia/Jakarta',
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',
@@ -707,12 +709,13 @@ const LaporanStaff = () => {
                     <span className="text-slate-400 block text-[11px]">Waktu Submit:</span>
                     <span className="font-semibold text-slate-700 mt-0.5 block">
                       {new Date(detailModal.created_at).toLocaleString('id-ID', {
+                        timeZone: 'Asia/Jakarta',
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit'
-                      })}
+                      })} WIB
                     </span>
                   </div>
 

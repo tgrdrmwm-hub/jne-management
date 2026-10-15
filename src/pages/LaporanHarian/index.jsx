@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ClipboardList, 
   Send, 
-  Clock, 
   CheckCircle2, 
   AlertCircle, 
   Trash2,
@@ -118,7 +117,7 @@ const LaporanHarian = () => {
     const exportList = filteredReports.length > 0 ? filteredReports : reports;
     const worksheetData = exportList.map((r, i) => ({
       No: i + 1,
-      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID'),
+      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
       'Nama Staff': r.users?.name || 'Staff',
       'Peran': r.users?.role || 'Staff',
       'Nama Kegiatan': r.kegiatan,
@@ -139,7 +138,7 @@ const LaporanHarian = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Harian");
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
     XLSX.writeFile(workbook, `Laporan_Harian_JNE_${dateStr}.xlsx`);
 
     Swal.fire({
@@ -168,7 +167,7 @@ const LaporanHarian = () => {
     const exportList = filteredReports.length > 0 ? filteredReports : reports;
     const worksheetData = exportList.map((r, i) => ({
       No: i + 1,
-      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID'),
+      'Tanggal & Waktu': new Date(r.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
       'Nama Staff': r.users?.name || 'Staff',
       'Peran': r.users?.role || 'Staff',
       'Nama Kegiatan': r.kegiatan,
@@ -867,6 +866,7 @@ const LaporanHarian = () => {
           ) : (
             filteredReports.map((r) => {
               const dateStr = new Date(r.created_at).toLocaleDateString('id-ID', {
+                timeZone: 'Asia/Jakarta',
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
