@@ -213,7 +213,7 @@ const LaporanStaff = () => {
 
   const canDelete = (report) => {
     if (!user) return false;
-    return user.role === 'Owner' || user.role === 'Developer' || user.id === report.user_id;
+    return user.role === 'Owner' || user.role === 'Developer' || user.role === 'Admin' || user.id === report.user_id;
   };
 
   const getStatusBadge = (status) => {

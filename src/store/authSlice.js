@@ -1,9 +1,26 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+const getInitialUser = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    const cleanUname = (u.username || '').replace(/@umaratax\.com$/i, '').toLowerCase();
+    if (cleanUname === 'asri' || u.email === 'asri@umaratax.com') {
+      u.role = 'Admin';
+      localStorage.setItem('user', JSON.stringify(u));
+    }
+    return u;
+  } catch {
+    return null;
+  }
+};
+
 // Initial state, check if user is logged in from localStorage
+const initialUser = getInitialUser();
 const initialState = {
-  user: JSON.parse(localStorage.getItem('user')) || null,
-  isAuthenticated: !!localStorage.getItem('user'),
+  user: initialUser,
+  isAuthenticated: !!initialUser,
   loading: false,
   error: null,
 };

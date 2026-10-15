@@ -21,7 +21,10 @@ import {
   Sparkles,
   UserCheck,
   CheckCircle2,
-  KeyRound
+  KeyRound,
+  Sun,
+  ShieldCheck,
+  Sunset
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import Swal from 'sweetalert2';
@@ -40,12 +43,14 @@ const Staff = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('Semua'); // 'Semua' | 'Pagi' | 'Siang'
 
   // Initial Form State
   const initialForm = {
     username: '',
     name: '',
     role: 'Staff',
+    shift: 'Shift Pagi (08:00 - 17:00)',
     password: '',
     no_telepon: '',
     email_pribadi: '',
@@ -97,6 +102,8 @@ const Staff = () => {
         return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'developer':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'admin':
+        return 'bg-indigo-100 text-indigo-700 border-indigo-200';
       default:
         return 'bg-blue-100 text-blue-700 border-blue-200';
     }
@@ -108,6 +115,8 @@ const Staff = () => {
         return <Shield size={14} />;
       case 'developer':
         return <User size={14} />;
+      case 'admin':
+        return <ShieldCheck size={14} />;
       default:
         return <Users size={14} />;
     }
@@ -121,6 +130,7 @@ const Staff = () => {
         username: (staffData.cleanUsername || staffData.username || '').replace(/@umaratax\.com$/i, ''),
         name: staffData.name || '',
         role: staffData.role || 'Staff',
+        shift: staffData.shift || 'Shift Pagi (08:00 - 17:00)',
         password: '',
         no_telepon: staffData.no_telepon || '',
         email_pribadi: staffData.email_pribadi || '',
@@ -169,7 +179,7 @@ const Staff = () => {
         Swal.fire({
           icon: 'success',
           title: 'Berhasil',
-          text: `Staff "${formData.name}" beserta biodata berhasil ditambahkan.`,
+          text: `Staff "${formData.name}" beserta biodata & shift berhasil ditambahkan.`,
           timer: 2000,
           showConfirmButton: false,
           customClass: { popup: 'rounded-2xl' }
@@ -179,6 +189,7 @@ const Staff = () => {
           name: formData.name.trim(),
           username: cleanUsername,
           role: formData.role,
+          shift: formData.shift,
           no_telepon: formData.no_telepon,
           email_pribadi: formData.email_pribadi,
           kontak_darurat_nama: formData.kontak_darurat_nama,
@@ -413,15 +424,23 @@ NOTIFY pgrst, 'reload schema';`;
 
   const filteredStaff = staff.filter(user => {
     const q = searchTerm.toLowerCase();
-    return (
+    const matchSearch = (
       user.name?.toLowerCase().includes(q) || 
       user.username?.toLowerCase().includes(q) ||
       user.role?.toLowerCase().includes(q) ||
+      user.shift?.toLowerCase().includes(q) ||
       user.no_telepon?.toLowerCase().includes(q) ||
       user.email_pribadi?.toLowerCase().includes(q) ||
       user.kontak_darurat_nama?.toLowerCase().includes(q) ||
       user.kontak_darurat_nomor?.toLowerCase().includes(q)
     );
+
+    const matchShift = 
+      shiftFilter === 'Semua' ||
+      (shiftFilter === 'Pagi' && user.shift?.toLowerCase().includes('pagi')) ||
+      (shiftFilter === 'Siang' && user.shift?.toLowerCase().includes('siang'));
+
+    return matchSearch && matchShift;
   });
 
   return (
@@ -449,16 +468,50 @@ NOTIFY pgrst, 'reload schema';`;
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-          <div className="w-full sm:w-64">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          <div className="w-full sm:w-56">
             <Input 
               icon={Search}
-              placeholder="Cari nama, kontak, no. HP..."
+              placeholder="Cari nama, kontak, shift..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="!bg-slate-50/70 !text-xs !py-1.5"
             />
           </div>
+
+          {/* Filter Shift Segments */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 shrink-0 text-xs">
+            <button
+              type="button"
+              onClick={() => setShiftFilter('Semua')}
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                shiftFilter === 'Semua' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftFilter('Pagi')}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                shiftFilter === 'Pagi' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sun size={11} />
+              <span>Pagi</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftFilter('Siang')}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                shiftFilter === 'Siang' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sunset size={11} />
+              <span>Siang</span>
+            </button>
+          </div>
+
           {isDeveloperOrOwner && (
             <button 
               onClick={() => handleOpenModal('add')}
@@ -506,6 +559,10 @@ NOTIFY pgrst, 'reload schema';`;
                 <span>•</span>
                 <span>📧 {myProfile.email_pribadi || `${myProfile.cleanUsername}@umaratax.com`}</span>
                 <span>•</span>
+                <span className="font-semibold text-slate-200">
+                  ⏱️ {myProfile.shift || 'Shift Pagi (08:00 - 17:00)'}
+                </span>
+                <span>•</span>
                 <span>🚨 Kontak Darurat: {myProfile.kontak_darurat_nama ? `${myProfile.kontak_darurat_nama} (${myProfile.kontak_darurat_nomor})` : <em className="text-slate-500">Belum diisi</em>}</span>
               </div>
             </div>
@@ -540,6 +597,7 @@ NOTIFY pgrst, 'reload schema';`;
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
                   <th className="py-3.5 px-4 font-bold">Profil & Akun Sistem</th>
                   <th className="py-3.5 px-4 font-bold">Role</th>
+                  <th className="py-3.5 px-4 font-bold">Shift Kerja Standar</th>
                   <th className="py-3.5 px-4 font-bold">Kontak Pribadi (HP / Email)</th>
                   <th className="py-3.5 px-4 font-bold">Kontak Darurat (Emergency)</th>
                   <th className="py-3.5 px-4 font-bold text-center">Aksi Biodata</th>
@@ -595,6 +653,23 @@ NOTIFY pgrst, 'reload schema';`;
                           {getRoleIcon(u.role)}
                           {u.role}
                         </span>
+                      </td>
+
+                      {/* Shift Kerja Standar */}
+                      <td className="py-3 px-4">
+                        {u.shift?.includes('Siang') ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                            <Sunset size={12} className="text-blue-600 shrink-0" />
+                            <span>Shift Siang</span>
+                            <span className="font-mono text-[9px] text-blue-600 font-medium">(13-22)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Sun size={12} className="text-amber-600 shrink-0" />
+                            <span>Shift Pagi</span>
+                            <span className="font-mono text-[9px] text-amber-600 font-medium">(08-17)</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* Kontak Pribadi */}
@@ -706,7 +781,7 @@ NOTIFY pgrst, 'reload schema';`;
                 
                 {filteredStaff.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center">
                         <Users size={32} className="mb-2 text-slate-300" />
                         <p className="font-semibold text-slate-600 text-sm">Tidak ada staff yang cocok</p>
@@ -763,7 +838,27 @@ NOTIFY pgrst, 'reload schema';`;
 
               {/* Card Body */}
               <div className="p-5 space-y-4">
-                {/* 1. Kontak Pribadi */}
+                {/* 1. Shift & Jam Kerja Standar */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Shift Kerja Standar</div>
+                    <div className="font-bold text-xs text-slate-900 mt-0.5 flex items-center gap-1.5">
+                      {detailStaff.shift?.includes('Siang') ? (
+                        <Sunset size={14} className="text-blue-600" />
+                      ) : (
+                        <Sun size={14} className="text-amber-600" />
+                      )}
+                      <span>{detailStaff.shift || 'Shift Pagi (08:00 - 17:00)'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] px-2 py-1 rounded bg-slate-200/80 text-slate-700 font-mono font-medium">
+                      {detailStaff.shift?.includes('Siang') ? '13:00 - 22:00 WIB' : '08:00 - 17:00 WIB'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Kontak Pribadi */}
                 <div className="space-y-2">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <User size={13} className="text-blue-600" />
@@ -808,7 +903,7 @@ NOTIFY pgrst, 'reload schema';`;
                   </div>
                 </div>
 
-                {/* 2. Kontak Darurat (Emergency Contact) */}
+                {/* 3. Kontak Darurat (Emergency Contact) */}
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider flex items-center gap-1">
                     <AlertCircle size={13} />
@@ -953,6 +1048,7 @@ NOTIFY pgrst, 'reload schema';`;
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 outline-none bg-white font-bold cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                       >
                         <option value="Staff">Staff (Kasir / Kurir / Operasional)</option>
+                        <option value="Admin">Admin (Kelola & Hapus Presensi)</option>
                         <option value="Developer">Developer</option>
                         <option value="Owner">Owner</option>
                       </select>
@@ -962,6 +1058,22 @@ NOTIFY pgrst, 'reload schema';`;
                         </p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Field Shift Kerja Standar */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Shift Kerja Standar
+                    </label>
+                    <select 
+                      value={formData.shift || 'Shift Pagi (08:00 - 17:00)'}
+                      onChange={e => setFormData({...formData, shift: e.target.value})}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 outline-none bg-white font-bold cursor-pointer text-xs"
+                    >
+                      <option value="Shift Pagi (08:00 - 17:00)">🌅 Shift Pagi (08:00 - 17:00 WIB)</option>
+                      <option value="Shift Siang (13:00 - 22:00)">🌇 Shift Siang (13:00 - 22:00 WIB)</option>
+                      <option value="Rolling / Fleksibel">🔄 Rolling / Fleksibel</option>
+                    </select>
                   </div>
 
                   <div>

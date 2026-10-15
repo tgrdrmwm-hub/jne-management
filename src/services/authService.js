@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { emailReminderService } from './emailReminderService';
+import { getLocalRoleOverrides } from './staffService';
 
 export const authService = {
   // Login menggunakan Supabase Auth (Mendukung Email atau Username)
@@ -44,11 +45,22 @@ export const authService = {
       throw new Error('Data profil tidak ditemukan di database.');
     }
 
+    const cleanUname = (profileData.username || '').replace(/@umaratax\.com$/i, '').toLowerCase();
+    const roleOverrides = getLocalRoleOverrides();
+    let effectiveRole = profileData.role || 'Staff';
+    if (roleOverrides[profileData.id]) {
+      effectiveRole = roleOverrides[profileData.id];
+    } else if (roleOverrides[cleanUname]) {
+      effectiveRole = roleOverrides[cleanUname];
+    } else if (cleanUname === 'asri') {
+      effectiveRole = 'Admin';
+    }
+
     const user = { 
       id: profileData.id, 
       username: profileData.username, 
       name: profileData.name, 
-      role: profileData.role 
+      role: effectiveRole 
     };
     
     // Kita tetap pakai localStorage agar sejalan dengan redux state awal

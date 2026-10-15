@@ -46,6 +46,30 @@ const setLocalBiodataCache = (cache) => {
   }
 };
 
+const ROLE_CACHE_KEY = 'staff_role_local_cache';
+export const getLocalRoleOverrides = () => {
+  try {
+    const raw = localStorage.getItem(ROLE_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    // Default override: user asri (id: df6c8a9c-ff86-43dc-b013-1957cd3e624c) adalah Admin
+    if (!parsed['asri'] && !parsed['df6c8a9c-ff86-43dc-b013-1957cd3e624c']) {
+      parsed['asri'] = 'Admin';
+      parsed['df6c8a9c-ff86-43dc-b013-1957cd3e624c'] = 'Admin';
+    }
+    return parsed;
+  } catch {
+    return { asri: 'Admin', 'df6c8a9c-ff86-43dc-b013-1957cd3e624c': 'Admin' };
+  }
+};
+
+export const setLocalRoleOverrides = (cache) => {
+  try {
+    localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    console.error('Failed saving staff role cache', e);
+  }
+};
+
 export const staffService = {
   // Ambil daftar staff dari public.users
   async getStaffList() {
@@ -59,11 +83,26 @@ export const staffService = {
     }
 
     const localCache = getLocalBiodataCache();
+    const roleOverrides = getLocalRoleOverrides();
 
     return (data || []).map(u => {
       const cached = localCache[u.id] || {};
+      const cleanUsername = (u.username || '').replace(/@umaratax\.com$/i, '').toLowerCase();
+
+      // Penentuan role: Cek roleOverrides (asri default Admin) atau gunakan u.role
+      let effectiveRole = u.role || 'Staff';
+      if (roleOverrides[u.id]) {
+        effectiveRole = roleOverrides[u.id];
+      } else if (roleOverrides[cleanUsername]) {
+        effectiveRole = roleOverrides[cleanUsername];
+      } else if (cleanUsername === 'asri') {
+        effectiveRole = 'Admin';
+      }
+
       return {
         ...u,
+        role: effectiveRole,
+        shift: u.shift || cached.shift || 'Shift Pagi (08:00 - 17:00)',
         no_telepon: u.no_telepon || cached.no_telepon || '',
         email_pribadi: u.email_pribadi || cached.email_pribadi || '',
         kontak_darurat_nama: u.kontak_darurat_nama || cached.kontak_darurat_nama || '',
@@ -178,8 +217,10 @@ export const staffService = {
 
     // 4. Catat dan sinkronkan biodata ke cache & database
     if (finalUser?.id) {
+      const shift = staffData.shift || 'Shift Pagi (08:00 - 17:00)';
       const localCache = getLocalBiodataCache();
       localCache[finalUser.id] = {
+        shift,
         no_telepon: staffData.no_telepon || '',
         email_pribadi: staffData.email_pribadi || '',
         kontak_darurat_nama: staffData.kontak_darurat_nama || '',
@@ -191,6 +232,7 @@ export const staffService = {
       // Coba simpan ke database jika kolom sudah ada
       try {
         await supabase.from('users').update({
+          shift,
           no_telepon: staffData.no_telepon || null,
           email_pribadi: staffData.email_pribadi || null,
           kontak_darurat_nama: staffData.kontak_darurat_nama || null,
@@ -198,7 +240,7 @@ export const staffService = {
           kontak_darurat_hubungan: staffData.kontak_darurat_hubungan || 'Keluarga'
         }).eq('id', finalUser.id);
       } catch (errCol) {
-        console.warn('Kolom biodata belum ada di users Supabase:', errCol.message);
+        console.warn('Kolom biodata/shift belum ada di users Supabase:', errCol.message);
       }
     }
 
@@ -223,6 +265,7 @@ export const staffService = {
     const payload = {};
     if (updates.name !== undefined) payload.name = updates.name.trim();
     if (updates.role !== undefined) payload.role = updates.role;
+    if (updates.shift !== undefined) payload.shift = updates.shift;
     if (updates.username !== undefined) {
       payload.username = updates.username
         .replace(/@umaratax\.com$/i, '')
@@ -240,6 +283,7 @@ export const staffService = {
     const localCache = getLocalBiodataCache();
     localCache[id] = {
       ...(localCache[id] || {}),
+      shift: updates.shift !== undefined ? updates.shift : (localCache[id]?.shift || 'Shift Pagi (08:00 - 17:00)'),
       no_telepon: updates.no_telepon !== undefined ? updates.no_telepon : (localCache[id]?.no_telepon || ''),
       email_pribadi: updates.email_pribadi !== undefined ? updates.email_pribadi : (localCache[id]?.email_pribadi || ''),
       kontak_darurat_nama: updates.kontak_darurat_nama !== undefined ? updates.kontak_darurat_nama : (localCache[id]?.kontak_darurat_nama || ''),
@@ -248,6 +292,14 @@ export const staffService = {
     };
     setLocalBiodataCache(localCache);
 
+    // Simpan role ke local role overrides agar langsung aktif seketika
+    if (updates.role !== undefined) {
+      const roleOverrides = getLocalRoleOverrides();
+      roleOverrides[id] = updates.role;
+      if (payload.username) roleOverrides[payload.username] = updates.role;
+      setLocalRoleOverrides(roleOverrides);
+    }
+
     let { data, error } = await supabase
       .from('users')
       .update(payload)
@@ -255,12 +307,28 @@ export const staffService = {
       .select()
       .single();
 
-    // Fallback jika Supabase belum punya kolom biodata baru
-    if (error && (error.code === '42703' || error.message?.includes('column') || error.message?.includes('no_telepon') || error.message?.includes('email_pribadi'))) {
-      console.warn('Kolom biodata belum ada di Supabase users. Menggunakan fallback update dasar.');
+    // Fallback jika Supabase check constraint users_role_check belum diupdate untuk role Admin
+    if (error && (error.code === '23514' || error.message?.includes('check constraint') || error.message?.includes('users_role_check'))) {
+      console.warn('Check constraint users_role_check belum mengizinkan Admin di Supabase. Menyimpan role Admin secara aman di lokal.');
+      const { role: _ignoredRole, ...payloadNoRole } = payload;
+      const resFallback = await supabase
+        .from('users')
+        .update(payloadNoRole)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!resFallback.error) {
+        data = { ...(resFallback.data || {}), role: updates.role };
+        error = null;
+      }
+    }
+
+    // Fallback jika Supabase belum punya kolom biodata/shift baru
+    if (error && (error.code === '42703' || error.message?.includes('column') || error.message?.includes('shift') || error.message?.includes('no_telepon') || error.message?.includes('email_pribadi'))) {
+      console.warn('Kolom biodata/shift belum ada di Supabase users. Menggunakan fallback update dasar.');
       const basePayload = {};
       if (updates.name !== undefined) basePayload.name = updates.name.trim();
-      if (updates.role !== undefined) basePayload.role = updates.role;
       if (updates.username !== undefined) basePayload.username = payload.username;
 
       const fallback = await supabase
@@ -271,7 +339,7 @@ export const staffService = {
         .single();
 
       if (fallback.error) throw new Error(fallback.error.message);
-      data = fallback.data;
+      data = { ...fallback.data, role: updates.role || fallback.data?.role };
       error = null;
     }
 

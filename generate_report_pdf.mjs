@@ -356,9 +356,9 @@ autoTable(doc, {
   head: [['Waktu / Tahap', 'Pelaku', 'Aktivitas Kerja di Sistem']],
   body: [
     [
-      '07:30 - 08:15 WIB (Pagi)',
+      '08:00 WIB (Pagi) / 13:00 WIB (Siang)',
       'Seluruh Staff / Kurir',
-      'Melakukan Clock In pada menu Absensi. Sistem otomatis mencatat jam hadir dan memberikan reward +10 Poin.'
+      'Melakukan Clock In pada menu Absensi sesuai shift masing-masing. Sistem otomatis mencatat jam hadir dan reward poin.'
     ],
     [
       '08:30 - 16:30 WIB (Siang)',

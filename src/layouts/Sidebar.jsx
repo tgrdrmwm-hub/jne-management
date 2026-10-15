@@ -21,10 +21,10 @@ const navItems = [
   { path: '/absensi', name: 'Presensi', icon: UserCheck },
   { path: '/kalender', name: 'Kalender Kegiatan', icon: CalendarDays },
   { path: '/laporan-harian', name: 'Laporan Harian', icon: ClipboardList },
-  { path: '/laporan-staff', name: 'Laporan Staff', icon: ClipboardCheck, roles: ['Owner', 'Developer'] },
+  { path: '/laporan-staff', name: 'Laporan Staff', icon: ClipboardCheck, roles: ['Owner', 'Developer', 'Admin'] },
   { path: '/poin', name: 'Poin Karyawan', icon: Coins },
   { path: '/staff', name: 'Staff', icon: Users },
-  { path: '/laporan', name: 'Grafik & Analytics', icon: BarChart3, roles: ['Owner', 'Developer'] },
+  { path: '/laporan', name: 'Grafik & Analytics', icon: BarChart3, roles: ['Owner', 'Developer', 'Admin'] },
 ];
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {

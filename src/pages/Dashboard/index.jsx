@@ -11,7 +11,9 @@ import {
   CalendarDays,
   Sparkles,
   MapPin,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Sunset
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { dashboardService } from '../../services/dashboardService';
@@ -143,15 +145,41 @@ const Dashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4"
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
       >
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">Ringkasan aktivitas operasional dan kehadiran real-time</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard Operasional</h1>
+          <p className="text-slate-500 text-xs mt-0.5">Monitoring aktivitas JNE, perputaran 2 shift kerja, dan kehadiran real-time</p>
         </div>
-        <div className="text-sm font-semibold text-blue-600 bg-blue-50/80 px-4 py-2 rounded-xl flex items-center gap-2 border border-blue-100/60 shadow-sm">
-          <Clock size={16} />
-          {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Active Operational Shift Indicator */}
+          {new Date().getHours() >= 13 && new Date().getHours() < 22 ? (
+            <div className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-blue-200 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <Sunset size={13} className="text-blue-600" />
+              <span>Shift Siang Berjalan</span>
+              <span className="font-mono text-[11px] text-blue-600 font-medium">(13:00 - 22:00)</span>
+            </div>
+          ) : new Date().getHours() >= 8 && new Date().getHours() < 17 ? (
+            <div className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-amber-200 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <Sun size={13} className="text-amber-600" />
+              <span>Shift Pagi Berjalan</span>
+              <span className="font-mono text-[11px] text-amber-600 font-medium">(08:00 - 17:00)</span>
+            </div>
+          ) : (
+            <div className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-slate-200 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span>Di Luar Jam Operasional</span>
+              <span className="font-mono text-[11px] text-slate-500 font-medium">(2 Shift: 08-17 & 13-22)</span>
+            </div>
+          )}
+
+          <div className="text-xs font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl flex items-center gap-2 border border-slate-200/90 shadow-xs">
+            <Clock size={13} className="text-blue-600" />
+            <span>{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+          </div>
         </div>
       </motion.div>
 
