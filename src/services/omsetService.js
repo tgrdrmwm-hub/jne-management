@@ -22,36 +22,53 @@ const setLocalData = (data) => {
 };
 
 export const omsetService = {
-  // Hitung otomatis komponen keuangan transaksi
-  calculateBreakdown({ tipe_transaksi, nilai_ongkir, komisi_persen = 15 }) {
-    const ongkir = Number(nilai_ongkir) || 0;
-    const persen = Number(komisi_persen) || 0;
-    const komisi = Math.round(ongkir * (persen / 100));
+  // Hitung otomatis komponen keuangan rekap hasil akhir harian
+  // Rumus 1 (HPP Pusat): (Hasil + Asuransi) - Pendapatan Toko = HPP Setor ke Pusat
+  // Rumus 2 (Laba Bersih): Pendapatan Toko - Piutang Customer - Diskon Customer + Bayar Customer
+  // Kas Diterima Kasir: Total Transaksi - Piutang Customer - Diskon + Bayar = HPP Pusat + Laba Bersih
+  calculateBreakdown({ 
+    nilai_ongkir, 
+    asuransi = 0, 
+    pendapatan_toko = 0,
+    piutang_customer = 0,
+    diskon_customer = 0,
+    bayar_customer = 0
+  }) {
+    const hasil = Number(nilai_ongkir) || 0;
+    const biayaAsuransi = Number(asuransi) || 0;
+    const pendapatanNominal = Number(pendapatan_toko) || 0;
+    const piutang = Number(piutang_customer) || 0;
+    const diskon = Number(diskon_customer) || 0;
+    const bayar = Number(bayar_customer) || 0;
 
-    if (tipe_transaksi === 'Cash') {
-      return {
-        nilai_ongkir: ongkir,
-        komisi_persen: persen,
-        komisi_nominal: komisi,
-        hpp_pusat: Math.max(0, ongkir - komisi),
-        kas_diterima: ongkir, // Uang fisik masuk laci
-      };
-    } else {
-      // Cashless (Marketplace / Booking Online)
-      // Customer TIDAK bayar tunai di counter
-      // Kasir TIDAK boleh setor HPP dari kas laci
-      // Komisi adalah piutang fee sharing yang ditransfer JNE Pusat
-      return {
-        nilai_ongkir: ongkir,
-        komisi_persen: persen,
-        komisi_nominal: komisi,
-        hpp_pusat: 0, // Rp 0 ke pusat (karena uang tidak diterima)
-        kas_diterima: 0, // Rp 0 uang tunai di laci
-      };
-    }
+    const totalTransaksi = hasil + biayaAsuransi;
+    
+    // HPP yang disetor ke pusat
+    const hppPusat = Math.max(0, totalTransaksi - pendapatanNominal);
+
+    // Laba Bersih Toko (Rumus Baru: Pendapatan - Piutang - Diskon + Bayar)
+    const labaBersih = pendapatanNominal - piutang - diskon + bayar;
+
+    // Kas fisik riil masuk ke laci kasir
+    const kasDiterima = totalTransaksi - piutang - diskon + bayar;
+
+    return {
+      nilai_ongkir: hasil,
+      asuransi: biayaAsuransi,
+      total_transaksi: totalTransaksi,
+      pendapatan_toko: pendapatanNominal,
+      komisi_nominal: pendapatanNominal,
+      piutang_customer: piutang,
+      diskon_customer: diskon,
+      bayar_customer: bayar,
+      laba_bersih: labaBersih,
+      komisi_persen: 0,
+      hpp_pusat: hppPusat,
+      kas_diterima: kasDiterima,
+    };
   },
 
-  // Ambil semua data penjualan
+  // Ambil semua data penjualan / rekap harian
   async getAll() {
     try {
       const { data, error } = await supabase
@@ -74,28 +91,38 @@ export const omsetService = {
     }
   },
 
-  // Tambah transaksi baru
+  // Tambah rekap harian baru
   async create(payload) {
     const breakdown = this.calculateBreakdown({
-      tipe_transaksi: payload.tipe_transaksi,
       nilai_ongkir: payload.nilai_ongkir,
-      komisi_persen: payload.komisi_persen
+      asuransi: payload.asuransi,
+      pendapatan_toko: payload.pendapatan_toko,
+      piutang_customer: payload.piutang_customer,
+      diskon_customer: payload.diskon_customer,
+      bayar_customer: payload.bayar_customer
     });
 
+    const todayDate = new Date().toISOString().split('T')[0];
     const record = {
-      tanggal: payload.tanggal || new Date().toISOString().split('T')[0],
+      tanggal: payload.tanggal || todayDate,
       waktu: payload.waktu || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      no_resi: payload.no_resi?.trim() || `JNE-${Date.now().toString().slice(-8)}`,
-      pelanggan: payload.pelanggan?.trim() || 'Pelanggan Counter',
-      layanan: payload.layanan || 'REG',
-      tipe_transaksi: payload.tipe_transaksi || 'Cash',
-      marketplace: payload.marketplace || (payload.tipe_transaksi === 'Cashless' ? 'Shopee' : 'None'),
+      no_resi: payload.no_resi?.trim() || `REKAP-${(payload.tanggal || todayDate).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`,
+      pelanggan: payload.pelanggan?.trim() || 'Rekap Harian Counter',
+      layanan: payload.layanan || 'Rekap Harian',
+      tipe_transaksi: 'Cash', // Standard di database check constraint
+      marketplace: 'None',
       nilai_ongkir: breakdown.nilai_ongkir,
-      komisi_persen: breakdown.komisi_persen,
+      asuransi: breakdown.asuransi,
+      komisi_persen: 0,
       komisi_nominal: breakdown.komisi_nominal,
+      pendapatan_toko: breakdown.pendapatan_toko,
+      piutang_customer: breakdown.piutang_customer,
+      diskon_customer: breakdown.diskon_customer,
+      bayar_customer: breakdown.bayar_customer,
+      laba_bersih: breakdown.laba_bersih,
       hpp_pusat: breakdown.hpp_pusat,
       kas_diterima: breakdown.kas_diterima,
-      status_setor: payload.status_setor || (payload.tipe_transaksi === 'Cash' ? 'Belum Setor' : 'Belum Cair'),
+      status_setor: payload.status_setor || 'Belum Setor',
       catatan: payload.catatan?.trim() || '',
       created_by: payload.created_by || null,
       created_at: new Date().toISOString(),

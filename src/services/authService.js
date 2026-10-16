@@ -35,14 +35,26 @@ export const authService = {
     }
 
     // Ambil detail profile dari public.users (karena id di tabel users berelasi dengan auth.users.id)
-    const { data: profileData, error: profileError } = await supabase
+    let profileData = null;
+    const { data: fullProfile, error: profileError } = await supabase
       .from('users')
-      .select('id, username, name, role')
+      .select('id, username, name, role, no_telepon, email_pribadi, kontak_darurat_nama, kontak_darurat_nomor, kontak_darurat_hubungan, shift')
       .eq('id', authData.user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profileData) {
-      throw new Error('Data profil tidak ditemukan di database.');
+    if (profileError || !fullProfile) {
+      const { data: baseProfile, error: baseErr } = await supabase
+        .from('users')
+        .select('id, username, name, role')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (baseErr || !baseProfile) {
+        throw new Error('Data profil tidak ditemukan di database.');
+      }
+      profileData = baseProfile;
+    } else {
+      profileData = fullProfile;
     }
 
     const cleanUname = (profileData.username || '').replace(/@umaratax\.com$/i, '').toLowerCase();
@@ -56,11 +68,24 @@ export const authService = {
       effectiveRole = 'Admin';
     }
 
+    // Ambil cache biodata lokal jika di DB masih kosong
+    let localCache = {};
+    try {
+      const rawCache = localStorage.getItem('staff_biodata_local_cache');
+      if (rawCache) localCache = JSON.parse(rawCache)[profileData.id] || {};
+    } catch {}
+
     const user = { 
       id: profileData.id, 
       username: profileData.username, 
       name: profileData.name, 
-      role: effectiveRole 
+      role: effectiveRole,
+      no_telepon: profileData.no_telepon || localCache.no_telepon || '',
+      email_pribadi: profileData.email_pribadi || localCache.email_pribadi || '',
+      kontak_darurat_nama: profileData.kontak_darurat_nama || localCache.kontak_darurat_nama || '',
+      kontak_darurat_nomor: profileData.kontak_darurat_nomor || localCache.kontak_darurat_nomor || '',
+      kontak_darurat_hubungan: profileData.kontak_darurat_hubungan || localCache.kontak_darurat_hubungan || 'Keluarga',
+      shift: profileData.shift || localCache.shift || 'Shift Pagi (08:00 - 17:00)'
     };
     
     // Kita tetap pakai localStorage agar sejalan dengan redux state awal

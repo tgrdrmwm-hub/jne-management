@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { Card } from '../../components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th, Td } from '../../components/ui/Table';
 import { Button } from '../../components/ui/Button';
@@ -106,7 +107,15 @@ const Absensi = () => {
     return matchSearch && matchShift;
   });
 
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user: authUser } = useSelector((state) => state.auth);
+  const currentUser = useMemo(() => {
+    if (authUser && Object.keys(authUser).length > 0) return authUser;
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, [authUser]);
 
   // Hak akses hapus presensi & export: Owner, Developer, dan Admin (termasuk asri@umaratax.com)
   const canManageAbsensi = useMemo(() => {
@@ -268,8 +277,49 @@ const Absensi = () => {
       const staffList = await staffService.getStaffList();
       Swal.close();
 
-      const optionsHtml = staffList.map(s => `<option value="${s.id}">${s.name} (${s.role || 'Staff'})</option>`).join('');
-      const today = new Date().toISOString().split('T')[0];
+      // Identifikasi user yang sedang login
+      const currentUserId = currentUser?.id;
+      const cleanCurrentUsername = (currentUser?.username || '').replace(/@umaratax\.com$/i, '').toLowerCase().trim();
+      const currentUserName = (currentUser?.name || '').toLowerCase().trim();
+
+      // Cari user di daftar staff
+      let matchedStaff = staffList.find(s => {
+        const sCleanUsername = (s.username || s.cleanUsername || '').replace(/@umaratax\.com$/i, '').toLowerCase().trim();
+        const sName = (s.name || '').toLowerCase().trim();
+        return (
+          (currentUserId && s.id === currentUserId) ||
+          (cleanCurrentUsername && sCleanUsername === cleanCurrentUsername) ||
+          (currentUserName && sName === currentUserName)
+        );
+      });
+
+      let fullStaffList = [...staffList];
+      if (!matchedStaff && (currentUser?.id || currentUser?.name)) {
+        matchedStaff = {
+          id: currentUser?.id || 'dev-current',
+          name: currentUser?.name || currentUser?.username || 'Saya (Login Saat Ini)',
+          role: currentUser?.role || 'Staff',
+          shift: currentUser?.shift || 'Shift Pagi (08:00 - 17:00)'
+        };
+        fullStaffList.unshift(matchedStaff);
+      }
+
+      const defaultSelectedId = matchedStaff?.id || (fullStaffList[0]?.id || '');
+      const userShift = matchedStaff?.shift || currentUser?.shift || 'Shift Pagi (08:00 - 17:00)';
+      const isInitialSiang = (userShift || '').toLowerCase().includes('siang');
+      const defaultMasuk = isInitialSiang ? '13:00' : '08:00';
+      const defaultKeluar = isInitialSiang ? '22:00' : '17:00';
+      const defaultRuleInfo = isInitialSiang
+        ? 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 13:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>'
+        : 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 08:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>';
+
+      const optionsHtml = fullStaffList.map(s => {
+        const isSelf = s.id === defaultSelectedId;
+        const selfTag = isSelf ? ' — (Akun Anda)' : '';
+        return `<option value="${s.id}" ${isSelf ? 'selected' : ''}>${s.name} (${s.role || 'Staff'})${selfTag}</option>`;
+      }).join('');
+
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
       const { value: formValues } = await Swal.fire({
         title: 'Presensi Manual',
@@ -277,20 +327,31 @@ const Absensi = () => {
           <div class="space-y-4 text-left font-['Inter',system-ui,sans-serif] text-xs">
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">Pilih Karyawan</label>
-              <select id="swal-karyawan" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
-                <option value="">-- Pilih Karyawan --</option>
-                ${optionsHtml}
-              </select>
+              ${!canManageAbsensi ? `
+                <select id="swal-karyawan" disabled class="w-full border border-gray-200 bg-gray-50 text-gray-700 rounded-lg px-3 py-2 cursor-not-allowed text-xs font-semibold">
+                  ${optionsHtml}
+                </select>
+                <p class="text-[10px] text-blue-600 mt-1 font-medium">
+                  Presensi manual otomatis terkunci untuk akun Anda (${matchedStaff?.name || 'Login'}).
+                </p>
+              ` : `
+                <select id="swal-karyawan" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold">
+                  ${optionsHtml}
+                </select>
+                <p class="text-[10px] text-slate-500 mt-1 font-medium">
+                  Otomatis terisi akun Anda. Anda dapat memilih karyawan lain jika perlu.
+                </p>
+              `}
             </div>
 
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">Shift Kerja</label>
               <select id="swal-shift" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold">
-                <option value="Shift Pagi (08:00 - 17:00)">🌅 Shift Pagi (08:00 - 17:00 WIB)</option>
-                <option value="Shift Siang (13:00 - 22:00)">🌇 Shift Siang (13:00 - 22:00 WIB)</option>
+                <option value="Shift Pagi (08:00 - 17:00)" ${!isInitialSiang ? 'selected' : ''}>🌅 Shift Pagi (08:00 - 17:00 WIB)</option>
+                <option value="Shift Siang (13:00 - 22:00)" ${isInitialSiang ? 'selected' : ''}>🌇 Shift Siang (13:00 - 22:00 WIB)</option>
               </select>
               <p id="swal-shift-rule" class="text-[10px] text-slate-500 mt-1 font-medium">
-                Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 08:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>
+                ${defaultRuleInfo}
               </p>
             </div>
 
@@ -302,11 +363,11 @@ const Absensi = () => {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Jam Masuk</label>
-                <input type="time" id="swal-masuk" value="08:00" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                <input type="time" id="swal-masuk" value="${defaultMasuk}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
               </div>
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Jam Keluar</label>
-                <input type="time" id="swal-keluar" value="17:00" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                <input type="time" id="swal-keluar" value="${defaultKeluar}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
               </div>
             </div>
 
@@ -331,12 +392,29 @@ const Absensi = () => {
         showLoaderOnConfirm: true,
         customClass: { popup: 'rounded-2xl' },
         didOpen: () => {
-          // Event otomatis untuk mengisi jam masuk/keluar & update status keterlambatan
+          const karyawanSelect = document.getElementById('swal-karyawan');
           const shiftSelect = document.getElementById('swal-shift');
           const masukInput = document.getElementById('swal-masuk');
           const keluarInput = document.getElementById('swal-keluar');
           const statusSelect = document.getElementById('swal-status');
           const ruleInfo = document.getElementById('swal-shift-rule');
+
+          // Pastikan pilihan karyawan default sesuai akun login
+          if (karyawanSelect && defaultSelectedId) {
+            karyawanSelect.value = defaultSelectedId;
+          }
+
+          // Sinkronisasi shift otomatis jika Admin/Developer memilih karyawan lain
+          if (karyawanSelect) {
+            karyawanSelect.addEventListener('change', (e) => {
+              const selectedStaff = fullStaffList.find(s => s.id === e.target.value);
+              if (selectedStaff && selectedStaff.shift && shiftSelect) {
+                const isStaffSiang = selectedStaff.shift.toLowerCase().includes('siang');
+                shiftSelect.value = isStaffSiang ? 'Shift Siang (13:00 - 22:00)' : 'Shift Pagi (08:00 - 17:00)';
+                shiftSelect.dispatchEvent(new Event('change'));
+              }
+            });
+          }
 
           const updateStatusFromTime = () => {
             if (!statusSelect || !masukInput || !shiftSelect) return;
@@ -372,7 +450,7 @@ const Absensi = () => {
           }
         },
         preConfirm: () => {
-          const karyawan_id = document.getElementById('swal-karyawan').value;
+          const karyawan_id = document.getElementById('swal-karyawan')?.value || defaultSelectedId;
           const shift = document.getElementById('swal-shift').value;
           const tanggal = document.getElementById('swal-tanggal').value;
           const jam_masuk = document.getElementById('swal-masuk').value;

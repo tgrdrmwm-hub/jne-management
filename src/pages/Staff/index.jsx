@@ -27,6 +27,7 @@ import {
   Sunset
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { staffService } from '../../services/staffService';
 import { updateProfile } from '../../store/authSlice';
@@ -34,6 +35,7 @@ import { Input } from '../../components/ui/Input';
 
 const Staff = () => {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { user: currentUser } = useSelector((state) => state.auth);
   
   // Developer dan Owner diizinkan untuk menambah akun baru & mengelola staff lain
@@ -87,14 +89,44 @@ const Staff = () => {
 
   // Profil user yang sedang login (Developer atau Staff)
   const myProfile = useMemo(() => {
-    if (!currentUser || !staff || staff.length === 0) return null;
+    if (!currentUser) return null;
     const cleanCurrentUsername = (currentUser.username || '').replace(/@umaratax\.com$/i, '').toLowerCase();
-    return staff.find(s => 
+    const found = (staff || []).find(s => 
       (currentUser.id && s.id === currentUser.id) || 
       (cleanCurrentUsername && s.cleanUsername?.toLowerCase() === cleanCurrentUsername) ||
       (currentUser.name && s.name?.toLowerCase() === currentUser.name?.toLowerCase())
-    ) || null;
+    );
+    if (found) return found;
+
+    // Fallback profile dari currentUser
+    let cached = {};
+    try {
+      const rawCache = localStorage.getItem('staff_biodata_local_cache');
+      if (rawCache && currentUser.id) cached = JSON.parse(rawCache)[currentUser.id] || {};
+    } catch {}
+
+    return {
+      id: currentUser.id || 'dev-self',
+      name: currentUser.name || 'Pengguna',
+      username: currentUser.username || 'user',
+      cleanUsername: cleanCurrentUsername || 'user',
+      role: currentUser.role || 'Developer',
+      shift: currentUser.shift || cached.shift || 'Shift Pagi (08:00 - 17:00)',
+      no_telepon: currentUser.no_telepon || cached.no_telepon || '',
+      email_pribadi: currentUser.email_pribadi || cached.email_pribadi || '',
+      kontak_darurat_nama: currentUser.kontak_darurat_nama || cached.kontak_darurat_nama || '',
+      kontak_darurat_nomor: currentUser.kontak_darurat_nomor || cached.kontak_darurat_nomor || '',
+      kontak_darurat_hubungan: currentUser.kontak_darurat_hubungan || cached.kontak_darurat_hubungan || 'Keluarga'
+    };
   }, [staff, currentUser]);
+
+  // Otomatis buka modal edit biodata jika diarahkan dari notifikasi kelengkapan profil di kanan atas
+  useEffect(() => {
+    if (location.state?.openProfile && myProfile) {
+      handleOpenModal('edit', myProfile);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, myProfile]);
 
   const getRoleColor = (role) => {
     switch (role?.toLowerCase()) {

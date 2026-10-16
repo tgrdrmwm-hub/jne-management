@@ -138,16 +138,31 @@ CREATE TABLE IF NOT EXISTS public.penjualan_jne (
     layanan VARCHAR(30) DEFAULT 'REG',
     tipe_transaksi VARCHAR(20) NOT NULL CHECK (tipe_transaksi IN ('Cash', 'Cashless')),
     marketplace VARCHAR(50) DEFAULT 'None',
-    nilai_ongkir NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    nilai_ongkir NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Nilai Transaksi / Hasil Dasar
+    asuransi NUMERIC(12, 2) NOT NULL DEFAULT 0,     -- Biaya Asuransi Paket
     komisi_persen NUMERIC(5, 2) NOT NULL DEFAULT 15,
-    komisi_nominal NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    hpp_pusat NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    kas_diterima NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    komisi_nominal NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Pendapatan Toko
+    pendapatan_toko NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    piutang_customer NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Piutang Pelanggan Belum Bayar
+    diskon_customer NUMERIC(12, 2) NOT NULL DEFAULT 0,  -- Potongan Harga Customer
+    bayar_customer NUMERIC(12, 2) NOT NULL DEFAULT 0,   -- Pembayaran Piutang Customer
+    laba_bersih NUMERIC(12, 2) NOT NULL DEFAULT 0,      -- Pendapatan - Piutang - Diskon + Bayar
+    hpp_pusat NUMERIC(12, 2) NOT NULL DEFAULT 0,    -- (Hasil + Asuransi) - Pendapatan Toko
+    kas_diterima NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Kas Masuk Laci = HPP Pusat + Laba Bersih
     status_setor VARCHAR(30) DEFAULT 'Belum Setor',
     catatan TEXT,
     created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+-- Migrasi jika kolom belum ada
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS asuransi NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS pendapatan_toko NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS piutang_customer NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS diskon_customer NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS bayar_customer NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS laba_bersih NUMERIC(12, 2) DEFAULT 0;
+
 
 -- Migrasi default timestamp: pastikan timestamptz memakai now() murni UTC (menghindari duplikasi offset +7 jam)
 ALTER TABLE public.laporan_harian ALTER COLUMN created_at SET DEFAULT now();

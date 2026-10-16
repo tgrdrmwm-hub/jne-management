@@ -93,6 +93,8 @@ const Login = () => {
           });
         }
         
+        sessionStorage.setItem('just_logged_in', 'true');
+        sessionStorage.removeItem('profile_incomplete_toast_shown');
         navigate('/dashboard');
       } catch (error) {
         dispatch(loginFailure(error.message));
