@@ -1,12 +1,20 @@
 import { supabase } from '../lib/supabase';
 
-const LOCAL_STORAGE_KEY = 'penjualan_jne_local_data';
+const LOCAL_STORAGE_KEY = 'laporan_keuangan_local_data';
 
 // Helper load local
 const getLocalData = () => {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (raw) return JSON.parse(raw);
+    // Migrasi otomatis data lokal lama jika ada
+    const legacy = localStorage.getItem('penjualan_jne_local_data');
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+      return parsed;
+    }
+    return [];
   } catch {
     return [];
   }
@@ -22,41 +30,6 @@ const setLocalData = (data) => {
 };
 
 const isValidUUID = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-// Deteksi dinamis: Cek apakah tabel laporan_keuangan sudah dibuat di Supabase, jika belum gunakan penjualan_jne
-let activeTableCache = null;
-
-async function detectActiveTable() {
-  if (activeTableCache) return activeTableCache;
-  try {
-    const res = await supabase.from('laporan_keuangan').select('id').limit(1);
-    if (!res.error || res.error.code !== 'PGRST205') {
-      activeTableCache = 'laporan_keuangan';
-      return activeTableCache;
-    }
-  } catch {}
-  activeTableCache = 'penjualan_jne';
-  return activeTableCache;
-}
-
-// Resilient insert: jika kolom tidak ditemukan pada skema Supabase (PGRST204), otomatis hilangkan kolom tsb dan coba lagi
-async function resilientInsert(table, payload) {
-  let currentPayload = { ...payload };
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const { data, error } = await supabase.from(table).insert([currentPayload]).select().single();
-    if (!error && data) return { data, error: null };
-
-    if (error && error.code === 'PGRST204' && error.message) {
-      const match = error.message.match(/Could not find the '([^']+)' column/);
-      if (match && match[1]) {
-        delete currentPayload[match[1]];
-        continue;
-      }
-    }
-    return { data: null, error };
-  }
-  return { data: null, error: new Error('Exceeded max retry attempts') };
-}
 
 export const omsetService = {
   // Hitung otomatis komponen keuangan rekap hasil akhir harian
@@ -106,27 +79,14 @@ export const omsetService = {
     };
   },
 
-  // Ambil semua data penjualan / rekap harian
+  // Ambil semua data rekap harian dari tabel laporan_keuangan
   async getAll() {
     try {
-      const table = await detectActiveTable();
-      let { data, error } = await supabase
-        .from(table)
+      const { data, error } = await supabase
+        .from('laporan_keuangan')
         .select('*')
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false });
-
-      // Fallback jika tabel laporan_keuangan belum ada
-      if (error && table === 'laporan_keuangan') {
-        activeTableCache = 'penjualan_jne';
-        const fallbackRes = await supabase
-          .from('penjualan_jne')
-          .select('*')
-          .order('tanggal', { ascending: false })
-          .order('created_at', { ascending: false });
-        data = fallbackRes.data;
-        error = fallbackRes.error;
-      }
 
       if (error) throw error;
       
@@ -137,16 +97,9 @@ export const omsetService = {
 
         // Normalisasi data agar kompatibel 100% dengan form web
         const normalized = data.map(item => {
-          let kantor = item.nama_kantor;
-          if (!kantor) {
-            if ((item.pelanggan || '').toLowerCase().includes('nusukan') || (item.catatan || '').toLowerCase().includes('nusukan')) {
-              kantor = 'JNE Nusukan';
-            } else {
-              kantor = 'JNE Ngemplak';
-            }
-          }
+          const kantor = item.nama_kantor || 'JNE Ngemplak';
           const hasil = Number(item.hasil_transaksi !== undefined && item.hasil_transaksi !== null ? item.hasil_transaksi : item.nilai_ongkir) || 0;
-          const pendapatan = Number(item.pendapatan_toko !== undefined ? item.pendapatan_toko : item.komisi_nominal) || 0;
+          const pendapatan = Number(item.pendapatan_toko) || 0;
           const piutang = Number(item.piutang_customer) || 0;
           const diskon = Number(item.diskon_customer) || 0;
           const bayar = Number(item.bayar_customer) || 0;
@@ -169,12 +122,12 @@ export const omsetService = {
       }
       return [];
     } catch (err) {
-      console.warn('Supabase omset fallback to local:', err.message);
+      console.warn('Supabase laporan_keuangan fallback to local:', err.message);
       return getLocalData();
     }
   },
 
-  // Tambah rekap harian baru (Sesuai 100% dengan Form Input Web)
+  // Tambah rekap harian baru ke tabel laporan_keuangan (Sesuai 100% dengan Form Input Web)
   async create(payload) {
     const rawHasil = payload.hasil_transaksi !== undefined ? payload.hasil_transaksi : payload.nilai_ongkir;
     const breakdown = this.calculateBreakdown({
@@ -194,7 +147,6 @@ export const omsetService = {
       tanggal: payload.tanggal || todayDate,
       nama_kantor: namaKantor,
       hasil_transaksi: breakdown.hasil_transaksi,
-      nilai_ongkir: breakdown.hasil_transaksi, // Kompatibilitas jika kolom lama masih ada
       asuransi: breakdown.asuransi,
       pendapatan_toko: breakdown.pendapatan_toko,
       piutang_customer: breakdown.piutang_customer,
@@ -209,21 +161,18 @@ export const omsetService = {
       created_at: new Date().toISOString(),
     };
 
-    // Simpan ke Supabase
+    // Simpan ke Supabase tabel laporan_keuangan
     try {
-      const table = await detectActiveTable();
-      let insertRes = await resilientInsert(table, record);
+      const { data, error } = await supabase
+        .from('laporan_keuangan')
+        .insert([record])
+        .select()
+        .single();
 
-      // Jika gagal di laporan_keuangan karena belum ada, coba ke penjualan_jne
-      if (insertRes.error && table === 'laporan_keuangan') {
-        activeTableCache = 'penjualan_jne';
-        insertRes = await resilientInsert('penjualan_jne', record);
-      }
-
-      if (!insertRes.error && insertRes.data) {
+      if (!error && data) {
         const savedData = {
-          ...insertRes.data,
-          nama_kantor: insertRes.data.nama_kantor || namaKantor,
+          ...data,
+          nama_kantor: data.nama_kantor || namaKantor,
           hasil_transaksi: breakdown.hasil_transaksi,
           nilai_ongkir: breakdown.hasil_transaksi
         };
@@ -232,12 +181,12 @@ export const omsetService = {
         return savedData;
       }
 
-      if (insertRes.error) throw insertRes.error;
+      if (error) throw error;
     } catch (err) {
-      console.error('Supabase insert failed:', err);
+      console.error('Supabase laporan_keuangan insert failed:', err);
       // Fallback local record jika offline
       const localId = Date.now();
-      const localRecord = { id: localId, ...record };
+      const localRecord = { id: localId, ...record, nilai_ongkir: breakdown.hasil_transaksi };
       const local = getLocalData();
       setLocalData([localRecord, ...local]);
       return localRecord;
@@ -247,9 +196,8 @@ export const omsetService = {
   // Update status setor HPP ke JNE Pusat
   async updateStatus(id, newStatus) {
     try {
-      const table = await detectActiveTable();
       await supabase
-        .from(table)
+        .from('laporan_keuangan')
         .update({ status_setor: newStatus })
         .eq('id', id);
     } catch (err) {
@@ -264,8 +212,7 @@ export const omsetService = {
   // Hapus transaksi rekap
   async delete(id) {
     try {
-      const table = await detectActiveTable();
-      await supabase.from(table).delete().eq('id', id);
+      await supabase.from('laporan_keuangan').delete().eq('id', id);
     } catch (err) {
       console.warn('Supabase delete failed:', err.message);
     }
@@ -276,7 +223,7 @@ export const omsetService = {
 
   // Batch insert untuk import Excel/CSV
   async batchCreate(rows) {
-    const formatted = rows.map((r, index) => {
+    const formatted = rows.map((r) => {
       const breakdown = this.calculateBreakdown({
         nilai_ongkir: r.hasil_transaksi || r.nilai_ongkir,
         asuransi: r.asuransi,
@@ -290,7 +237,6 @@ export const omsetService = {
         tanggal: r.tanggal || new Date().toISOString().split('T')[0],
         nama_kantor: r.nama_kantor || 'JNE Ngemplak',
         hasil_transaksi: breakdown.hasil_transaksi,
-        nilai_ongkir: breakdown.hasil_transaksi,
         asuransi: breakdown.asuransi,
         pendapatan_toko: breakdown.pendapatan_toko,
         piutang_customer: breakdown.piutang_customer,
@@ -306,9 +252,8 @@ export const omsetService = {
     });
 
     try {
-      const table = await detectActiveTable();
       const { data, error } = await supabase
-        .from(table)
+        .from('laporan_keuangan')
         .insert(formatted)
         .select();
 
@@ -322,7 +267,7 @@ export const omsetService = {
     }
 
     const local = getLocalData();
-    const withIds = formatted.map((f, i) => ({ id: Date.now() + i, ...f }));
+    const withIds = formatted.map((f, i) => ({ id: Date.now() + i, ...f, nilai_ongkir: f.hasil_transaksi }));
     setLocalData([...withIds, ...local]);
     return withIds;
   }

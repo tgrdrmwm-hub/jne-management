@@ -471,8 +471,8 @@ export default function Omset() {
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap_Penjualan_JNE");
-    XLSX.writeFile(workbook, `Rekap_Penjualan_JNE_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap_Keuangan_JNE");
+    XLSX.writeFile(workbook, `Rekap_Keuangan_JNE_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const formatRupiah = (val) => {

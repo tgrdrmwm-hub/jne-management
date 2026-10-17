@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS public.kalender_kegiatan (
 -- ==========================================================
 -- ==========================================================
 -- 7. Tabel Laporan Keuangan (Rekap Harian & Setoran JNE Pusat)
--- Struktur Bersih Sesuai Form Web 100%
+-- Struktur Bersih Sesuai Form Web 100% (Tabel Utama Terbaru)
 -- ==========================================================
 CREATE TABLE IF NOT EXISTS public.laporan_keuangan (
     id SERIAL PRIMARY KEY,
@@ -150,64 +150,42 @@ CREATE TABLE IF NOT EXISTS public.laporan_keuangan (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()        -- 15. Waktu Dicatat
 );
 
--- Penyesuaian tabel penjualan_jne yang sudah ada agar strukturnya juga bersih & identik dengan form:
-CREATE TABLE IF NOT EXISTS public.penjualan_jne (
-    id SERIAL PRIMARY KEY,
-    tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
-    nama_kantor VARCHAR(100) NOT NULL DEFAULT 'JNE Ngemplak',
-    hasil_transaksi NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    asuransi NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    pendapatan_toko NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    piutang_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    diskon_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    bayar_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    laba_bersih NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    hpp_pusat NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    kas_diterima NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    status_setor VARCHAR(30) DEFAULT 'Belum Setor',
-    catatan TEXT,
-    created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-
--- Migrasi sinkronisasi kolom pada tabel penjualan_jne jika tabel sudah ada di Supabase
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS nama_kantor VARCHAR(100) DEFAULT 'JNE Ngemplak';
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS hasil_transaksi NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS asuransi NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS pendapatan_toko NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS piutang_customer NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS diskon_customer NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS bayar_customer NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS laba_bersih NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS hpp_pusat NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS kas_diterima NUMERIC(14, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS status_setor VARCHAR(30) DEFAULT 'Belum Setor';
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS catatan TEXT;
-
--- Sinkronisasi hasil_transaksi dari nilai_ongkir lama jika ada
+-- Migrasi data dari tabel lama penjualan_jne ke laporan_keuangan, kemudian hapus penjualan_jne:
 DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'penjualan_jne' AND column_name = 'nilai_ongkir') THEN
-        UPDATE public.penjualan_jne SET hasil_transaksi = COALESCE(nilai_ongkir, 0) WHERE hasil_transaksi = 0;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'penjualan_jne') THEN
+        INSERT INTO public.laporan_keuangan (
+            tanggal, nama_kantor, hasil_transaksi, asuransi, pendapatan_toko, 
+            piutang_customer, diskon_customer, bayar_customer, laba_bersih, 
+            hpp_pusat, kas_diterima, status_setor, catatan, created_by, created_at
+        )
+        SELECT 
+            tanggal, 
+            COALESCE(nama_kantor, 'JNE Ngemplak'), 
+            COALESCE(nilai_ongkir, 0), 
+            COALESCE(asuransi, 0), 
+            COALESCE(pendapatan_toko, komisi_nominal, 0), 
+            COALESCE(piutang_customer, 0), 
+            COALESCE(diskon_customer, 0), 
+            COALESCE(bayar_customer, 0), 
+            COALESCE(laba_bersih, 0), 
+            COALESCE(hpp_pusat, 0), 
+            COALESCE(kas_diterima, 0), 
+            COALESCE(status_setor, 'Belum Setor'), 
+            catatan, 
+            created_by, 
+            created_at
+        FROM public.penjualan_jne;
+        
+        -- Hapus tabel lama penjualan_jne agar tidak dipakai lagi
+        DROP TABLE IF EXISTS public.penjualan_jne CASCADE;
     END IF;
 END $$;
-
--- Bersihkan kolom legacy (tidak terpakai lagi) dari tabel penjualan_jne agar tampil rapi di Table Editor
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS no_resi;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS pelanggan;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS layanan;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS tipe_transaksi;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS marketplace;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS komisi_persen;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS komisi_nominal;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS waktu;
-ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS nilai_ongkir;
 
 -- Migrasi default timestamp
 ALTER TABLE public.laporan_harian ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.aktivitas ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.riwayat_poin ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.kalender_kegiatan ALTER COLUMN created_at SET DEFAULT now();
-ALTER TABLE public.penjualan_jne ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.laporan_keuangan ALTER COLUMN created_at SET DEFAULT now();
 
 -- ==========================================================
@@ -219,7 +197,6 @@ ALTER TABLE public.laporan_harian ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.aktivitas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.riwayat_poin ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kalender_kegiatan ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.penjualan_jne ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.laporan_keuangan ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
@@ -240,9 +217,6 @@ DO $$ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'kalender_kegiatan' AND policyname = 'Allow all for kalender_kegiatan') THEN
         CREATE POLICY "Allow all for kalender_kegiatan" ON public.kalender_kegiatan FOR ALL USING (true) WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'penjualan_jne' AND policyname = 'Allow all for penjualan_jne') THEN
-        CREATE POLICY "Allow all for penjualan_jne" ON public.penjualan_jne FOR ALL USING (true) WITH CHECK (true);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'laporan_keuangan' AND policyname = 'Allow all for laporan_keuangan') THEN
         CREATE POLICY "Allow all for laporan_keuangan" ON public.laporan_keuangan FOR ALL USING (true) WITH CHECK (true);
