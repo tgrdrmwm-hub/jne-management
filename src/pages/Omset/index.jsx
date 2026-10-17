@@ -26,7 +26,8 @@ import {
   Percent,
   Minus,
   Plus,
-  Download
+  Download,
+  Edit3
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
@@ -67,8 +68,61 @@ export default function Omset() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // null: buat baru, object: sedang mengedit data
   const [formData, setFormData] = useState(initialForm);
   const [kantorFilter, setKantorFilter] = useState('Semua'); // 'Semua' | 'JNE Ngemplak' | 'JNE Nusukan'
+
+  // Buka modal untuk tambah rekap baru
+  const handleOpenCreateModal = () => {
+    setEditingItem(null);
+    setFormData(initialForm);
+    setIsModalOpen(true);
+  };
+
+  // Peringatan saat mencoba mengedit data yang sudah disetor ke pusat
+  const handleBlockedEdit = (item) => {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Data Terkunci',
+      html: `
+        <div class="text-xs text-slate-600 space-y-2 text-left">
+          <p>Data rekap harian tanggal <b>${item.tanggal}</b> (<b>${item.nama_kantor || 'JNE Ngemplak'}</b>) berstatus <b class="text-blue-600">Sudah Setor ke Pusat</b>.</p>
+          <div class="p-2.5 bg-slate-100 rounded-xl font-mono text-[11px] text-slate-700">
+            🔒 Data yang sudah disetor ke pusat tidak dapat diedit untuk mencegah selisih neraca kasir.
+          </div>
+        </div>
+      `,
+      confirmButtonText: 'Mengerti',
+      confirmButtonColor: '#2563eb',
+      customClass: { popup: 'rounded-2xl' }
+    });
+  };
+
+  // Buka modal untuk edit rekap harian (hanya jika belum setor ke pusat)
+  const handleOpenEditModal = (item) => {
+    if (item.status_setor === 'Sudah Setor') {
+      handleBlockedEdit(item);
+      return;
+    }
+
+    setEditingItem(item);
+    const hasilVal = item.hasil_transaksi !== undefined && item.hasil_transaksi !== null 
+      ? item.hasil_transaksi 
+      : item.nilai_ongkir;
+
+    setFormData({
+      tanggal: item.tanggal || new Date().toISOString().split('T')[0],
+      nama_kantor: item.nama_kantor || 'JNE Ngemplak',
+      nilai_ongkir: hasilVal !== undefined && hasilVal !== null && hasilVal !== '' ? String(hasilVal) : '',
+      asuransi: item.asuransi ? String(item.asuransi) : '',
+      pendapatan_toko: item.pendapatan_toko ? String(item.pendapatan_toko) : (item.komisi_nominal ? String(item.komisi_nominal) : ''),
+      piutang_customer: item.piutang_customer ? String(item.piutang_customer) : '',
+      diskon_customer: item.diskon_customer ? String(item.diskon_customer) : '',
+      bayar_customer: item.bayar_customer ? String(item.bayar_customer) : '',
+      catatan: item.catatan || ''
+    });
+    setIsModalOpen(true);
+  };
 
   // Fetch data
   const fetchData = async () => {
@@ -257,7 +311,7 @@ export default function Omset() {
     formData.bayar_customer
   ]);
 
-  // Form submit (Simpan Rekap Hasil Akhir Harian)
+  // Form submit (Simpan atau Perbarui Rekap Hasil Akhir Harian)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.nilai_ongkir || Number(formData.nilai_ongkir) <= 0) {
@@ -271,36 +325,68 @@ export default function Omset() {
     }
 
     try {
-      await omsetService.create({
-        tanggal: formData.tanggal,
-        nama_kantor: formData.nama_kantor?.trim() || 'JNE Ngemplak',
-        hasil_transaksi: Number(formData.nilai_ongkir),
-        nilai_ongkir: Number(formData.nilai_ongkir),
-        asuransi: Number(formData.asuransi) || 0,
-        pendapatan_toko: Number(formData.pendapatan_toko) || 0,
-        piutang_customer: Number(formData.piutang_customer) || 0,
-        diskon_customer: Number(formData.diskon_customer) || 0,
-        bayar_customer: Number(formData.bayar_customer) || 0,
-        catatan: formData.catatan,
-        created_by: user?.id
-      });
+      if (editingItem) {
+        // Mode Edit: Pastikan belum disetor ke pusat
+        if (editingItem.status_setor === 'Sudah Setor') {
+          handleBlockedEdit(editingItem);
+          return;
+        }
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Rekap Harian Tersimpan',
-        text: `Data rekap hasil akhir harian tanggal ${formData.tanggal} berhasil dicatat.`,
-        timer: 1500,
-        showConfirmButton: false,
-        customClass: { popup: 'rounded-2xl' }
-      });
+        await omsetService.update(editingItem.id, {
+          tanggal: formData.tanggal,
+          nama_kantor: formData.nama_kantor?.trim() || 'JNE Ngemplak',
+          hasil_transaksi: Number(formData.nilai_ongkir),
+          nilai_ongkir: Number(formData.nilai_ongkir),
+          asuransi: Number(formData.asuransi) || 0,
+          pendapatan_toko: Number(formData.pendapatan_toko) || 0,
+          piutang_customer: Number(formData.piutang_customer) || 0,
+          diskon_customer: Number(formData.diskon_customer) || 0,
+          bayar_customer: Number(formData.bayar_customer) || 0,
+          catatan: formData.catatan
+        });
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Perubahan Tersimpan',
+          text: `Data rekap tanggal ${formData.tanggal} berhasil diperbarui.`,
+          timer: 1500,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-2xl' }
+        });
+      } else {
+        // Mode Tambah Baru
+        await omsetService.create({
+          tanggal: formData.tanggal,
+          nama_kantor: formData.nama_kantor?.trim() || 'JNE Ngemplak',
+          hasil_transaksi: Number(formData.nilai_ongkir),
+          nilai_ongkir: Number(formData.nilai_ongkir),
+          asuransi: Number(formData.asuransi) || 0,
+          pendapatan_toko: Number(formData.pendapatan_toko) || 0,
+          piutang_customer: Number(formData.piutang_customer) || 0,
+          diskon_customer: Number(formData.diskon_customer) || 0,
+          bayar_customer: Number(formData.bayar_customer) || 0,
+          catatan: formData.catatan,
+          created_by: user?.id
+        });
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Rekap Harian Tersimpan',
+          text: `Data rekap hasil akhir harian tanggal ${formData.tanggal} berhasil dicatat.`,
+          timer: 1500,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-2xl' }
+        });
+      }
 
       setIsModalOpen(false);
+      setEditingItem(null);
       setFormData(initialForm);
       fetchData();
     } catch (err) {
       Swal.fire({
         icon: 'error',
-        title: 'Gagal Menyimpan',
+        title: editingItem ? 'Gagal Memperbarui' : 'Gagal Menyimpan',
         text: err.message || 'Terjadi kesalahan sistem.',
         customClass: { popup: 'rounded-2xl' }
       });
@@ -762,10 +848,7 @@ export default function Omset() {
             <span>Ekspor Excel</span>
           </button>
           <button
-            onClick={() => {
-              setFormData(initialForm);
-              setIsModalOpen(true);
-            }}
+            onClick={handleOpenCreateModal}
             className="px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <PlusCircle size={15} />
@@ -1167,6 +1250,29 @@ export default function Omset() {
                           {/* Aksi */}
                           <td className="py-3 px-4 text-center sticky right-0 bg-white/95 backdrop-blur-xs shadow-[-3px_0_4px_-1px_rgba(0,0,0,0.06)]">
                             <div className="flex items-center justify-center gap-1.5">
+                              {/* Button Edit Per Laporan (Terkunci jika Sudah Setor ke Pusat) */}
+                              {item.status_setor === 'Sudah Setor' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleBlockedEdit(item)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 shadow-2xs hover:bg-slate-200/60 transition-all"
+                                  title="Terkunci: Data sudah disetor ke pusat dan tidak dapat diedit"
+                                >
+                                  <Lock size={12} className="text-slate-400" />
+                                  <span>Edit</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(item)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                                  title="Edit data rekap harian ini (Belum Setor)"
+                                >
+                                  <Edit3 size={12} className="text-amber-600" />
+                                  <span>Edit</span>
+                                </button>
+                              )}
+
                               {/* Button Ekspor Per Laporan */}
                               <button
                                 onClick={() => handleExportSingle(item)}
@@ -1411,17 +1517,24 @@ export default function Omset() {
               {/* Header Pinned */}
               <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                    <Receipt size={17} />
+                  <div className={`w-8 h-8 rounded-xl ${editingItem ? 'bg-amber-500' : 'bg-blue-600'} text-white flex items-center justify-center shadow-xs`}>
+                    {editingItem ? <Edit3 size={17} /> : <Receipt size={17} />}
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm">Catat Rekap Hasil Akhir Harian JNE</h3>
-                    <p className="text-[10px] text-slate-500">Kalkulasi HPP setor pusat dan laba bersih toko</p>
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      {editingItem ? 'Edit Rekap Hasil Harian JNE' : 'Catat Rekap Hasil Akhir Harian JNE'}
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      {editingItem ? `Perbarui data transaksi cabang ${formData.nama_kantor}` : 'Kalkulasi HPP setor pusat dan laba bersih toko'}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingItem(null);
+                  }}
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer transition-colors"
                 >
                   <X size={18} />
@@ -1706,7 +1819,10 @@ export default function Omset() {
               <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/90 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingItem(null);
+                  }}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl font-semibold transition-colors cursor-pointer text-xs"
                 >
                   Batal
@@ -1714,9 +1830,10 @@ export default function Omset() {
                 <button
                   type="submit"
                   form="form-transaksi-omset"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-xs cursor-pointer text-xs"
+                  className={`px-5 py-2 ${editingItem ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl font-bold transition-all shadow-xs cursor-pointer text-xs flex items-center gap-1.5`}
                 >
-                  Simpan Rekap Harian
+                  {editingItem ? <Edit3 size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{editingItem ? 'Simpan Perubahan' : 'Simpan Rekap Harian'}</span>
                 </button>
               </div>
             </motion.div>

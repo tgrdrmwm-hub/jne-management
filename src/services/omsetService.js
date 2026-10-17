@@ -193,6 +193,64 @@ export const omsetService = {
     }
   },
 
+  // Update rekap harian yang sudah ada (hanya jika belum setor ke pusat)
+  async update(id, payload) {
+    const rawHasil = payload.hasil_transaksi !== undefined ? payload.hasil_transaksi : payload.nilai_ongkir;
+    const breakdown = this.calculateBreakdown({
+      nilai_ongkir: rawHasil,
+      asuransi: payload.asuransi,
+      pendapatan_toko: payload.pendapatan_toko,
+      piutang_customer: payload.piutang_customer,
+      diskon_customer: payload.diskon_customer,
+      bayar_customer: payload.bayar_customer
+    });
+
+    const namaKantor = payload.nama_kantor?.trim() || 'JNE Ngemplak';
+
+    const updateRecord = {
+      tanggal: payload.tanggal,
+      nama_kantor: namaKantor,
+      hasil_transaksi: breakdown.hasil_transaksi,
+      asuransi: breakdown.asuransi,
+      pendapatan_toko: breakdown.pendapatan_toko,
+      piutang_customer: breakdown.piutang_customer,
+      diskon_customer: breakdown.diskon_customer,
+      bayar_customer: breakdown.bayar_customer,
+      laba_bersih: breakdown.laba_bersih,
+      hpp_pusat: breakdown.hpp_pusat,
+      kas_diterima: breakdown.kas_diterima,
+      catatan: payload.catatan?.trim() || ''
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('laporan_keuangan')
+        .update(updateRecord)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!error && data) {
+        const savedData = {
+          ...data,
+          nama_kantor: data.nama_kantor || namaKantor,
+          hasil_transaksi: breakdown.hasil_transaksi,
+          nilai_ongkir: breakdown.hasil_transaksi
+        };
+        const local = getLocalData();
+        setLocalData(local.map(item => String(item.id) === String(id) ? { ...item, ...savedData } : item));
+        return savedData;
+      }
+      if (error) throw error;
+    } catch (err) {
+      console.error('Supabase laporan_keuangan update failed:', err);
+      const local = getLocalData();
+      const updated = local.map(item => String(item.id) === String(id) ? { ...item, ...updateRecord, nilai_ongkir: breakdown.hasil_transaksi } : item);
+      setLocalData(updated);
+      return updated.find(x => String(x.id) === String(id));
+    }
+  },
+
   // Update status setor HPP ke JNE Pusat
   async updateStatus(id, newStatus) {
     try {
