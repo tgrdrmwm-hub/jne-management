@@ -127,49 +127,88 @@ CREATE TABLE IF NOT EXISTS public.kalender_kegiatan (
 );
 
 -- ==========================================================
--- 7. Tabel Penjualan & Omset JNE (Cash, Cashless, HPP & Komisi)
 -- ==========================================================
+-- 7. Tabel Laporan Keuangan (Rekap Harian & Setoran JNE Pusat)
+-- Struktur Bersih Sesuai Form Web 100%
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS public.laporan_keuangan (
+    id SERIAL PRIMARY KEY,
+    tanggal DATE NOT NULL DEFAULT CURRENT_DATE,              -- 1. Tanggal Rekap Harian
+    nama_kantor VARCHAR(100) NOT NULL DEFAULT 'JNE Ngemplak', -- 2. Cabang Kantor JNE (JNE Ngemplak / JNE Nusukan)
+    hasil_transaksi NUMERIC(14, 2) NOT NULL DEFAULT 0,       -- 3. Hasil / Nilai Transaksi dasar (Rp)
+    asuransi NUMERIC(14, 2) NOT NULL DEFAULT 0,              -- 4. Biaya Asuransi (Rp)
+    pendapatan_toko NUMERIC(14, 2) NOT NULL DEFAULT 0,       -- 5. Pendapatan Toko Kotor (Rp)
+    piutang_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,      -- 6. Piutang Customer (Rp)
+    diskon_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,       -- 7. Discount Customer (Rp)
+    bayar_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,        -- 8. Bayar Customer (Rp)
+    laba_bersih NUMERIC(14, 2) NOT NULL DEFAULT 0,           -- 9. Laba Bersih Toko (Rp)
+    hpp_pusat NUMERIC(14, 2) NOT NULL DEFAULT 0,             -- 10. HPP Setor ke JNE Pusat (Rp)
+    kas_diterima NUMERIC(14, 2) NOT NULL DEFAULT 0,          -- 11. Total Kas Masuk Laci (Rp)
+    status_setor VARCHAR(30) NOT NULL DEFAULT 'Belum Setor', -- 12. Status Setor Pusat ('Belum Setor' / 'Sudah Setor')
+    catatan TEXT,                                            -- 13. Catatan Closing / Keterangan
+    created_by UUID REFERENCES public.users(id) ON DELETE SET NULL, -- 14. ID Penginput
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()        -- 15. Waktu Dicatat
+);
+
+-- Penyesuaian tabel penjualan_jne yang sudah ada agar strukturnya juga bersih & identik dengan form:
 CREATE TABLE IF NOT EXISTS public.penjualan_jne (
     id SERIAL PRIMARY KEY,
     tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
-    waktu TIME DEFAULT CURRENT_TIME,
-    no_resi VARCHAR(50),
-    pelanggan VARCHAR(100) DEFAULT 'Pelanggan Counter',
-    layanan VARCHAR(30) DEFAULT 'REG',
-    tipe_transaksi VARCHAR(20) NOT NULL CHECK (tipe_transaksi IN ('Cash', 'Cashless')),
-    marketplace VARCHAR(50) DEFAULT 'None',
-    nilai_ongkir NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Nilai Transaksi / Hasil Dasar
-    asuransi NUMERIC(12, 2) NOT NULL DEFAULT 0,     -- Biaya Asuransi Paket
-    komisi_persen NUMERIC(5, 2) NOT NULL DEFAULT 15,
-    komisi_nominal NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Pendapatan Toko
-    pendapatan_toko NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    piutang_customer NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Piutang Pelanggan Belum Bayar
-    diskon_customer NUMERIC(12, 2) NOT NULL DEFAULT 0,  -- Potongan Harga Customer
-    bayar_customer NUMERIC(12, 2) NOT NULL DEFAULT 0,   -- Pembayaran Piutang Customer
-    laba_bersih NUMERIC(12, 2) NOT NULL DEFAULT 0,      -- Pendapatan - Piutang - Diskon + Bayar
-    hpp_pusat NUMERIC(12, 2) NOT NULL DEFAULT 0,    -- (Hasil + Asuransi) - Pendapatan Toko
-    kas_diterima NUMERIC(12, 2) NOT NULL DEFAULT 0, -- Kas Masuk Laci = HPP Pusat + Laba Bersih
+    nama_kantor VARCHAR(100) NOT NULL DEFAULT 'JNE Ngemplak',
+    hasil_transaksi NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    asuransi NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    pendapatan_toko NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    piutang_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    diskon_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    bayar_customer NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    laba_bersih NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    hpp_pusat NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    kas_diterima NUMERIC(14, 2) NOT NULL DEFAULT 0,
     status_setor VARCHAR(30) DEFAULT 'Belum Setor',
     catatan TEXT,
     created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- Migrasi jika kolom belum ada
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS asuransi NUMERIC(12, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS pendapatan_toko NUMERIC(12, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS piutang_customer NUMERIC(12, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS diskon_customer NUMERIC(12, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS bayar_customer NUMERIC(12, 2) DEFAULT 0;
-ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS laba_bersih NUMERIC(12, 2) DEFAULT 0;
+-- Migrasi sinkronisasi kolom pada tabel penjualan_jne jika tabel sudah ada di Supabase
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS nama_kantor VARCHAR(100) DEFAULT 'JNE Ngemplak';
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS hasil_transaksi NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS asuransi NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS pendapatan_toko NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS piutang_customer NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS diskon_customer NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS bayar_customer NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS laba_bersih NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS hpp_pusat NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS kas_diterima NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS status_setor VARCHAR(30) DEFAULT 'Belum Setor';
+ALTER TABLE public.penjualan_jne ADD COLUMN IF NOT EXISTS catatan TEXT;
 
+-- Sinkronisasi hasil_transaksi dari nilai_ongkir lama jika ada
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'penjualan_jne' AND column_name = 'nilai_ongkir') THEN
+        UPDATE public.penjualan_jne SET hasil_transaksi = COALESCE(nilai_ongkir, 0) WHERE hasil_transaksi = 0;
+    END IF;
+END $$;
 
--- Migrasi default timestamp: pastikan timestamptz memakai now() murni UTC (menghindari duplikasi offset +7 jam)
+-- Bersihkan kolom legacy (tidak terpakai lagi) dari tabel penjualan_jne agar tampil rapi di Table Editor
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS no_resi;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS pelanggan;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS layanan;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS tipe_transaksi;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS marketplace;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS komisi_persen;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS komisi_nominal;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS waktu;
+ALTER TABLE public.penjualan_jne DROP COLUMN IF EXISTS nilai_ongkir;
+
+-- Migrasi default timestamp
 ALTER TABLE public.laporan_harian ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.aktivitas ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.riwayat_poin ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.kalender_kegiatan ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.penjualan_jne ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE public.laporan_keuangan ALTER COLUMN created_at SET DEFAULT now();
 
 -- ==========================================================
 -- 8. Row Level Security (RLS) & Policies
@@ -181,6 +220,7 @@ ALTER TABLE public.aktivitas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.riwayat_poin ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kalender_kegiatan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.penjualan_jne ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laporan_keuangan ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'users' AND policyname = 'Allow all for users') THEN
@@ -203,6 +243,9 @@ DO $$ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'penjualan_jne' AND policyname = 'Allow all for penjualan_jne') THEN
         CREATE POLICY "Allow all for penjualan_jne" ON public.penjualan_jne FOR ALL USING (true) WITH CHECK (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'laporan_keuangan' AND policyname = 'Allow all for laporan_keuangan') THEN
+        CREATE POLICY "Allow all for laporan_keuangan" ON public.laporan_keuangan FOR ALL USING (true) WITH CHECK (true);
     END IF;
 END $$;
 
@@ -236,9 +279,9 @@ CREATE TRIGGER trigger_sync_user_poin
 AFTER INSERT OR UPDATE OR DELETE ON public.riwayat_poin
 FOR EACH ROW EXECUTE FUNCTION sync_user_poin();
 
--- Reset seluruh saldo poin ke 0 & bersihkan riwayat mutasi poin
-DELETE FROM public.riwayat_poin;
-UPDATE public.users SET poin = 0;
+-- Catatan: Perintah reset poin di bawah dinonaktifkan agar data poin tidak terhapus saat file dijalankan ulang:
+-- DELETE FROM public.riwayat_poin;
+-- UPDATE public.users SET poin = 0;
 
 -- ==========================================================
 -- 10. Trigger Otomatis User Baru dari Supabase Auth

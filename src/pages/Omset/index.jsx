@@ -25,10 +25,13 @@ import {
   TrendingUp,
   Percent,
   Minus,
-  Plus
+  Plus,
+  Download
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { omsetService } from '../../services/omsetService';
 
 export default function Omset() {
@@ -52,6 +55,7 @@ export default function Omset() {
   // Form Initial State (Rekap Hasil Akhir Harian & Laba Bersih)
   const initialForm = {
     tanggal: new Date().toISOString().split('T')[0],
+    nama_kantor: 'JNE Ngemplak', // 2 Cabang: JNE Ngemplak & JNE Nusukan
     nilai_ongkir: '', // Hasil / Nilai Transaksi dasar harian
     asuransi: '', // Biaya Asuransi
     pendapatan_toko: '', // Nominal Pendapatan Toko Kotor (manual Rp)
@@ -64,6 +68,7 @@ export default function Omset() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(initialForm);
+  const [kantorFilter, setKantorFilter] = useState('Semua'); // 'Semua' | 'JNE Ngemplak' | 'JNE Nusukan'
 
   // Fetch data
   const fetchData = async () => {
@@ -82,19 +87,44 @@ export default function Omset() {
     fetchData();
   }, []);
 
+  // Daftar nama cabang/kantor (default: JNE Ngemplak & JNE Nusukan)
+  const uniqueKantorList = useMemo(() => {
+    const setK = new Set(['JNE Ngemplak', 'JNE Nusukan']);
+    data.forEach(item => {
+      let k = item.nama_kantor || item.kantor;
+      if (k === 'Kantor JNE 1') k = 'JNE Ngemplak';
+      if (k === 'Kantor JNE 2' || k?.toLowerCase() === 'nususkan') k = 'JNE Nusukan';
+      if (k && k.trim()) {
+        setK.add(k.trim());
+      }
+    });
+    return Array.from(setK);
+  }, [data]);
+
   // Filtered transactions for rekap tab
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      // 1. Search (tanggal / catatan / nomor rekap)
+      // Normalisasi nama kantor
+      let itemKantor = (item.nama_kantor || item.kantor || 'JNE Ngemplak').trim();
+      if (itemKantor === 'Kantor JNE 1') itemKantor = 'JNE Ngemplak';
+      if (itemKantor === 'Kantor JNE 2' || itemKantor.toLowerCase() === 'nususkan') itemKantor = 'JNE Nusukan';
+
+      // 1. Search (tanggal / catatan / nomor rekap / kantor)
       if (search) {
         const q = search.toLowerCase();
         const dateMatch = item.tanggal?.toLowerCase().includes(q);
         const noteMatch = item.catatan?.toLowerCase().includes(q);
         const resiMatch = item.no_resi?.toLowerCase().includes(q);
-        if (!dateMatch && !noteMatch && !resiMatch) return false;
+        const kantorMatch = itemKantor.toLowerCase().includes(q);
+        if (!dateMatch && !noteMatch && !resiMatch && !kantorMatch) return false;
       }
 
-      // 2. Date Filter
+      // 2. Kantor Filter (JNE Ngemplak vs JNE Nusukan)
+      if (kantorFilter !== 'Semua') {
+        if (itemKantor.toLowerCase() !== kantorFilter.toLowerCase().trim()) return false;
+      }
+
+      // 3. Date Filter
       if (dateFilter !== 'Semua') {
         const itemDate = new Date(item.tanggal);
         const today = new Date();
@@ -111,7 +141,7 @@ export default function Omset() {
 
       return true;
     });
-  }, [data, search, dateFilter]);
+  }, [data, search, kantorFilter, dateFilter]);
 
   // Financial Summaries & Neraca Aggregations
   // Rumus Laba Bersih: Pendapatan Toko - Piutang Customer - Discount Customer + Bayar Customer
@@ -243,6 +273,8 @@ export default function Omset() {
     try {
       await omsetService.create({
         tanggal: formData.tanggal,
+        nama_kantor: formData.nama_kantor?.trim() || 'JNE Ngemplak',
+        hasil_transaksi: Number(formData.nilai_ongkir),
         nilai_ongkir: Number(formData.nilai_ongkir),
         asuransi: Number(formData.asuransi) || 0,
         pendapatan_toko: Number(formData.pendapatan_toko) || 0,
@@ -405,6 +437,7 @@ export default function Omset() {
       return {
         'No': idx + 1,
         'Tanggal Rekap': item.tanggal,
+        'Kantor JNE': item.nama_kantor === 'Kantor JNE 2' ? 'JNE Nusukan' : (item.nama_kantor || 'JNE Ngemplak'),
         'Hasil / Nilai Transaksi (Rp)': item.nilai_ongkir,
         'Biaya Asuransi (Rp)': item.asuransi || 0,
         'Pendapatan Toko Kotor (Rp)': pendapatan,
@@ -459,6 +492,220 @@ export default function Omset() {
     } catch {
       return dateStr;
     }
+  };
+
+  // Ekspor Excel (.xlsx) per 1 Laporan Rekap Harian
+  const exportSingleExcel = (item) => {
+    const itemKantor = item.nama_kantor === 'Kantor JNE 1' ? 'JNE Ngemplak' :
+                       (item.nama_kantor === 'Kantor JNE 2' || item.nama_kantor?.toLowerCase() === 'nususkan') ? 'JNE Nusukan' :
+                       (item.nama_kantor || 'JNE Ngemplak');
+
+    const pendapatan = Number(item.pendapatan_toko !== undefined ? item.pendapatan_toko : item.komisi_nominal) || 0;
+    const piutang = Number(item.piutang_customer) || 0;
+    const diskon = Number(item.diskon_customer) || 0;
+    const bayar = Number(item.bayar_customer) || 0;
+    const labaBersih = item.laba_bersih !== undefined && item.laba_bersih !== null
+      ? Number(item.laba_bersih)
+      : (pendapatan - piutang - diskon + bayar);
+    const kasMasuk = Number(item.kas_diterima) || (Number(item.nilai_ongkir) + Number(item.asuransi || 0) - piutang - diskon + bayar);
+    const status = item.status_setor || 'Belum Setor';
+
+    const exportData = [
+      { 'Komponen Rekap Harian': 'KANTOR CABANG JNE', 'Nilai / Keterangan': itemKantor },
+      { 'Komponen Rekap Harian': 'TANGGAL REKAP', 'Nilai / Keterangan': item.tanggal },
+      { 'Komponen Rekap Harian': 'HARI & TANGGAL LENGKAP', 'Nilai / Keterangan': formatTanggalIndo(item.tanggal) },
+      { 'Komponen Rekap Harian': 'STATUS SETORAN PUSAT', 'Nilai / Keterangan': status },
+      { 'Komponen Rekap Harian': '', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': '1. Hasil / Nilai Transaksi Dasar (Rp)', 'Nilai / Keterangan': Number(item.nilai_ongkir) || 0 },
+      { 'Komponen Rekap Harian': '2. Biaya Asuransi Paket (Rp)', 'Nilai / Keterangan': Number(item.asuransi) || 0 },
+      { 'Komponen Rekap Harian': '3. Total Transaksi + Asuransi (Rp)', 'Nilai / Keterangan': (Number(item.nilai_ongkir) || 0) + (Number(item.asuransi) || 0) },
+      { 'Komponen Rekap Harian': '4. Pendapatan Toko Kotor (Komisi) (Rp)', 'Nilai / Keterangan': pendapatan },
+      { 'Komponen Rekap Harian': '5. HPP Wajib Setor ke JNE Pusat (Rp)', 'Nilai / Keterangan': Number(item.hpp_pusat) || 0 },
+      { 'Komponen Rekap Harian': '', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': '--- PENYESUAIAN CUSTOMER ---', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': '(-) Piutang Customer Belum Bayar (Rp)', 'Nilai / Keterangan': piutang },
+      { 'Komponen Rekap Harian': '(-) Discount Customer Toko (Rp)', 'Nilai / Keterangan': diskon },
+      { 'Komponen Rekap Harian': '(+) Bayar Piutang Customer (Rp)', 'Nilai / Keterangan': bayar },
+      { 'Komponen Rekap Harian': '', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': '--- HASIL AKHIR & KAS LACI ---', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': 'LABA BERSIH TOKO (NET PROFIT) (Rp)', 'Nilai / Keterangan': labaBersih },
+      { 'Komponen Rekap Harian': 'TOTAL KAS FISIK DI LACI (Kas Masuk) (Rp)', 'Nilai / Keterangan': kasMasuk },
+      { 'Komponen Rekap Harian': '', 'Nilai / Keterangan': '' },
+      { 'Komponen Rekap Harian': 'Keterangan / Catatan Closing', 'Nilai / Keterangan': item.catatan || 'Rekap Harian JNE' },
+      { 'Komponen Rekap Harian': 'Waktu Input Data', 'Nilai / Keterangan': item.waktu || '-' },
+      { 'Komponen Rekap Harian': 'Waktu Ekspor Laporan', 'Nilai / Keterangan': new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    worksheet['!cols'] = [{ wch: 44 }, { wch: 36 }];
+    const workbook = XLSX.utils.book_new();
+    const cleanKantor = itemKantor.replace(/\s+/g, '_');
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Rekap_${item.tanggal}`);
+    XLSX.writeFile(workbook, `Laporan_Rekap_${cleanKantor}_${item.tanggal}.xlsx`);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Ekspor Excel Berhasil',
+      text: `File Laporan_Rekap_${cleanKantor}_${item.tanggal}.xlsx berhasil diunduh.`,
+      timer: 2000,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-2xl' }
+    });
+  };
+
+  // Ekspor PDF (.pdf) per 1 Laporan Rekap Harian
+  const exportSinglePDF = (item) => {
+    const itemKantor = item.nama_kantor === 'Kantor JNE 1' ? 'JNE Ngemplak' :
+                       (item.nama_kantor === 'Kantor JNE 2' || item.nama_kantor?.toLowerCase() === 'nususkan') ? 'JNE Nusukan' :
+                       (item.nama_kantor || 'JNE Ngemplak');
+
+    const pendapatan = Number(item.pendapatan_toko !== undefined ? item.pendapatan_toko : item.komisi_nominal) || 0;
+    const piutang = Number(item.piutang_customer) || 0;
+    const diskon = Number(item.diskon_customer) || 0;
+    const bayar = Number(item.bayar_customer) || 0;
+    const labaBersih = item.laba_bersih !== undefined && item.laba_bersih !== null
+      ? Number(item.laba_bersih)
+      : (pendapatan - piutang - diskon + bayar);
+    const kasMasuk = Number(item.kas_diterima) || (Number(item.nilai_ongkir) + Number(item.asuransi || 0) - piutang - diskon + bayar);
+    const status = item.status_setor || 'Belum Setor';
+
+    const doc = new jsPDF();
+
+    // Top Header Banner JNE Corporate Blue
+    doc.setFillColor(0, 74, 141);
+    doc.rect(0, 0, 210, 24, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text("LAPORAN REKAP HASIL AKHIR & SETORAN HARIAN JNE", 14, 11);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Cabang: ${itemKantor}  |  Tanggal: ${formatTanggalIndo(item.tanggal)} (${item.tanggal})`, 14, 18);
+
+    // Meta details
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(9);
+    doc.text(`Status Setoran ke Pusat : ${status}`, 14, 32);
+    doc.text(`Catatan Closing            : ${item.catatan || 'Rekap Harian JNE'}`, 14, 38);
+    doc.text(`Dicetak Pada                 : ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`, 14, 44);
+
+    const tableRows = [
+      ['1. Hasil / Nilai Transaksi Dasar', formatRupiah(item.nilai_ongkir)],
+      ['2. Biaya Asuransi Paket', `+ ${formatRupiah(item.asuransi || 0)}`],
+      ['3. Total Transaksi + Asuransi', formatRupiah((Number(item.nilai_ongkir) || 0) + (Number(item.asuransi) || 0))],
+      ['4. Pendapatan Toko Kotor (Komisi)', formatRupiah(pendapatan)],
+      ['5. HPP Wajib Setor ke JNE Pusat', formatRupiah(item.hpp_pusat)],
+      ['6. (-) Piutang Customer Belum Bayar', `- ${formatRupiah(piutang)}`],
+      ['7. (-) Discount Customer Toko', `- ${formatRupiah(diskon)}`],
+      ['8. (+) Bayar Piutang Customer', `+ ${formatRupiah(bayar)}`],
+      ['9. LABA BERSIH TOKO (NET PROFIT)', formatRupiah(labaBersih)],
+      ['10. TOTAL KAS FISIK DI LACI (Kas Masuk)', formatRupiah(kasMasuk)],
+    ];
+
+    doc.autoTable({
+      startY: 49,
+      head: [['Rincian Komponen Rekapitulasi', 'Nominal (Rp)']],
+      body: tableRows,
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 3.5 },
+      headStyles: { fillColor: [0, 74, 141], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { fontStyle: 'normal' },
+        1: { halign: 'right', fontStyle: 'bold' }
+      },
+      didParseCell: function (data) {
+        if (data.row.index === 4) {
+          data.cell.styles.textColor = [220, 38, 38]; // Red for HPP Setor
+        }
+        if (data.row.index === 8) {
+          data.cell.styles.fillColor = [254, 243, 199]; // Amber
+          data.cell.styles.textColor = [180, 83, 9];
+        }
+        if (data.row.index === 9) {
+          data.cell.styles.fillColor = [236, 253, 245]; // Emerald
+          data.cell.styles.textColor = [4, 120, 87];
+        }
+      }
+    });
+
+    const cleanKantor = itemKantor.replace(/\s+/g, '_');
+    doc.save(`Slip_Rekap_${cleanKantor}_${item.tanggal}.pdf`);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Ekspor PDF Berhasil',
+      text: `File Slip_Rekap_${cleanKantor}_${item.tanggal}.pdf berhasil diunduh.`,
+      timer: 2000,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-2xl' }
+    });
+  };
+
+  // Dialog Pilihan Ekspor per 1 Laporan
+  const handleExportSingle = (item) => {
+    const itemKantor = item.nama_kantor === 'Kantor JNE 1' ? 'JNE Ngemplak' :
+                       (item.nama_kantor === 'Kantor JNE 2' || item.nama_kantor?.toLowerCase() === 'nususkan') ? 'JNE Nusukan' :
+                       (item.nama_kantor || 'JNE Ngemplak');
+
+    const pendapatan = Number(item.pendapatan_toko !== undefined ? item.pendapatan_toko : item.komisi_nominal) || 0;
+    const piutang = Number(item.piutang_customer) || 0;
+    const diskon = Number(item.diskon_customer) || 0;
+    const bayar = Number(item.bayar_customer) || 0;
+    const labaBersih = item.laba_bersih !== undefined && item.laba_bersih !== null
+      ? Number(item.laba_bersih)
+      : (pendapatan - piutang - diskon + bayar);
+    const kasMasuk = Number(item.kas_diterima) || (Number(item.nilai_ongkir) + Number(item.asuransi || 0) - piutang - diskon + bayar);
+
+    Swal.fire({
+      title: 'Ekspor Laporan Rekap',
+      html: `
+        <div style="text-align: left; font-size: 12px; color: #334155; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.8;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b; font-weight: 600;">Cabang:</span>
+            <span style="font-weight: 700; color: #1e293b;">${itemKantor}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b; font-weight: 600;">Tanggal Rekap:</span>
+            <span style="font-weight: 700; color: #1e293b;">${formatTanggalIndo(item.tanggal)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; margin-top: 6px; padding-top: 6px;">
+            <span style="color: #64748b; font-weight: 600;">Total Kas Laci:</span>
+            <span style="font-weight: 700; color: #059669;">${formatRupiah(kasMasuk)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b; font-weight: 600;">HPP Setor Pusat:</span>
+            <span style="font-weight: 700; color: #e11d48;">${formatRupiah(item.hpp_pusat)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b; font-weight: 600;">Laba Bersih Toko:</span>
+            <span style="font-weight: 700; color: #d97706;">${formatRupiah(labaBersih)}</span>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 14px; text-align: center;">Pilih format dokumen untuk diekspor:</p>
+      `,
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: '📊 Ekspor Excel (.xlsx)',
+      denyButtonText: '📄 Cetak / PDF (.pdf)',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#059669', // Emerald
+      denyButtonColor: '#004a8d',    // Corporate JNE Blue
+      cancelButtonColor: '#94a3b8',
+      customClass: {
+        popup: 'rounded-2xl',
+        confirmButton: 'rounded-xl font-bold text-xs px-3.5 py-2.5 cursor-pointer',
+        denyButton: 'rounded-xl font-bold text-xs px-3.5 py-2.5 cursor-pointer',
+        cancelButton: 'rounded-xl font-bold text-xs px-3 py-2.5 cursor-pointer'
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        exportSingleExcel(item);
+      } else if (result.isDenied) {
+        exportSinglePDF(item);
+      }
+    });
   };
 
   return (
@@ -718,7 +965,22 @@ export default function Omset() {
               />
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              {/* Filter Kantor JNE */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                <Building2 size={13} className="text-blue-600 shrink-0" />
+                <select
+                  value={kantorFilter}
+                  onChange={(e) => setKantorFilter(e.target.value)}
+                  className="text-xs font-semibold bg-transparent text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value="Semua">Semua Cabang (Ngemplak & Nusukan)</option>
+                  {uniqueKantorList.map(k => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Date Filter */}
               <select
                 value={dateFilter}
@@ -748,7 +1010,7 @@ export default function Omset() {
                     <th className="py-3 px-4 text-right">Laba Bersih Toko</th>
                     <th className="py-3 px-4 text-center">Status Setor Pusat</th>
                     <th className="py-3 px-4">Keterangan</th>
-                    <th className="py-3 px-4 text-center">Aksi</th>
+                    <th className="py-3 px-4 text-center min-w-[130px] sticky right-0 bg-slate-50/95 backdrop-blur-xs shadow-[-3px_0_4px_-1px_rgba(0,0,0,0.06)]">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -786,8 +1048,22 @@ export default function Omset() {
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                          {/* Tanggal Rekap */}
+                          {/* Tanggal Rekap & Kantor JNE */}
                           <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
+                                (item.nama_kantor || '').toLowerCase().includes('nusukan') || (item.nama_kantor || '').toLowerCase().includes('nususkan') || (item.nama_kantor || '').includes('2')
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                                <Building2 size={10} className="shrink-0" />
+                                <span>
+                                  {item.nama_kantor === 'Kantor JNE 1' ? 'JNE Ngemplak' :
+                                   (item.nama_kantor === 'Kantor JNE 2' || item.nama_kantor?.toLowerCase() === 'nususkan') ? 'JNE Nusukan' :
+                                   (item.nama_kantor || 'JNE Ngemplak')}
+                                </span>
+                              </span>
+                            </div>
                             <div className="font-bold text-slate-900 font-sans">{formatTanggalIndo(item.tanggal)}</div>
                             <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
                               <Clock size={10} /> {item.tanggal}
@@ -889,20 +1165,28 @@ export default function Omset() {
                           </td>
 
                           {/* Aksi */}
-                          <td className="py-3 px-4 text-center">
-                            {canSetorKePusat ? (
+                          <td className="py-3 px-4 text-center sticky right-0 bg-white/95 backdrop-blur-xs shadow-[-3px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {/* Button Ekspor Per Laporan */}
                               <button
-                                onClick={() => handleDelete(item.id, item.tanggal)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Hapus data rekap ini (Khusus Admin/Developer)"
+                                onClick={() => handleExportSingle(item)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                                title="Ekspor laporan rekap hari ini (Excel / PDF)"
                               >
-                                <Trash2 size={14} />
+                                <Download size={12} className="text-emerald-600" />
+                                <span>Ekspor</span>
                               </button>
-                            ) : (
-                              <span className="p-1.5 text-slate-300 inline-block" title="Aksi hanya untuk Admin/Developer">
-                                <Lock size={13} className="text-slate-300" />
-                              </span>
-                            )}
+
+                              {canSetorKePusat ? (
+                                <button
+                                  onClick={() => handleDelete(item.id, item.tanggal)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Hapus data rekap ini (Khusus Admin/Developer)"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1150,18 +1434,70 @@ export default function Omset() {
                 onSubmit={handleSubmit} 
                 className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-3.5 text-xs"
               >
-                {/* 1. Tanggal Rekap Penjualan */}
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Tanggal Rekap Harian <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.tanggal}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:border-blue-500 outline-none bg-slate-50/50"
-                    required
-                  />
+                {/* 1. Tanggal Rekap & Kantor JNE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Tanggal Rekap Harian <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.tanggal}
+                      onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:border-blue-500 outline-none bg-slate-50/50"
+                      required
+                    />
+                  </div>
+
+                  {/* Pilihan Kantor JNE (Ngemplak & Nusukan) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700 flex items-center gap-1">
+                        <Building2 size={13} className="text-blue-600" />
+                        Cabang Kantor JNE <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                        2 Cabang
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, nama_kantor: 'JNE Ngemplak' }))}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                          formData.nama_kantor === 'JNE Ngemplak'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Building2 size={12} />
+                        <span>JNE Ngemplak</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, nama_kantor: 'JNE Nusukan' }))}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                          formData.nama_kantor === 'JNE Nusukan'
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Building2 size={12} />
+                        <span>JNE Nusukan</span>
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Nama cabang / kantor..."
+                      value={formData.nama_kantor}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nama_kantor: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold focus:border-blue-500 outline-none bg-white text-slate-800"
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* 2. Hasil / Nilai Transaksi & 3. Biaya Asuransi */}
