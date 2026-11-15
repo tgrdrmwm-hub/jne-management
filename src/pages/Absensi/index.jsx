@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { absensiService } from '../../services/absensiService';
 import { staffService } from '../../services/staffService';
 import { poinService } from '../../services/poinService';
-import { Download, FileText, Clock, LogIn, LogOut, Search, UserCheck, PlusCircle, Trash2, Sun, Sunset } from 'lucide-react';
+import { Download, FileText, Clock, LogIn, LogOut, Search, UserCheck, PlusCircle, Trash2, Sun, Sunset, ArrowUpDown, Calendar, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -54,6 +54,7 @@ const Absensi = () => {
   const [data, setData] = useState([]);
   const [search, setSearch] = useState('');
   const [shiftFilter, setShiftFilter] = useState('Semua'); // 'Semua' | 'Pagi' | 'Siang'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' (Terbaru) | 'asc' (Terlama)
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -92,20 +93,33 @@ const Absensi = () => {
     fetchData();
   }, []);
 
-  const filteredData = data.filter(item => {
+  const filteredData = useMemo(() => {
     const q = search.toLowerCase();
-    const matchSearch = 
-      item.nama?.toLowerCase().includes(q) || 
-      item.status?.toLowerCase().includes(q) ||
-      item.shift?.toLowerCase().includes(q);
+    const result = data.filter(item => {
+      const matchSearch = 
+        item.nama?.toLowerCase().includes(q) || 
+        item.status?.toLowerCase().includes(q) ||
+        item.shift?.toLowerCase().includes(q);
 
-    const matchShift = 
-      shiftFilter === 'Semua' || 
-      (shiftFilter === 'Pagi' && item.shift?.toLowerCase().includes('pagi')) ||
-      (shiftFilter === 'Siang' && item.shift?.toLowerCase().includes('siang'));
+      const matchShift = 
+        shiftFilter === 'Semua' || 
+        (shiftFilter === 'Pagi' && item.shift?.toLowerCase().includes('pagi')) ||
+        (shiftFilter === 'Siang' && item.shift?.toLowerCase().includes('siang'));
 
-    return matchSearch && matchShift;
-  });
+      return matchSearch && matchShift;
+    });
+
+    return [...result].sort((a, b) => {
+      const dateA = a.tanggal || '';
+      const dateB = b.tanggal || '';
+      if (dateA !== dateB) {
+        return sortOrder === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+      }
+      const timeA = a.jamMasuk || '';
+      const timeB = b.jamMasuk || '';
+      return sortOrder === 'asc' ? timeA.localeCompare(timeB) : timeB.localeCompare(timeA);
+    });
+  }, [data, search, shiftFilter, sortOrder]);
 
   const { user: authUser } = useSelector((state) => state.auth);
   const currentUser = useMemo(() => {
@@ -319,12 +333,60 @@ const Absensi = () => {
         return `<option value="${s.id}" ${isSelf ? 'selected' : ''}>${s.name} (${s.role || 'Staff'})${selfTag}</option>`;
       }).join('');
 
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+      // Helper kalkulasi tanggal lokal
+      const now = new Date();
+      const currentDay = now.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+      
+      const formatYMD = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const today = formatYMD(now);
+
+      // Senin minggu ini
+      const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+      const thisMonday = new Date(now);
+      thisMonday.setDate(now.getDate() + diffToMonday);
+      const thisMondayStr = formatYMD(thisMonday);
+
+      // Sabtu minggu ini
+      const thisSaturday = new Date(thisMonday);
+      thisSaturday.setDate(thisMonday.getDate() + 5);
+      const thisSaturdayStr = formatYMD(thisSaturday);
+
+      // Senin minggu lalu
+      const lastMonday = new Date(thisMonday);
+      lastMonday.setDate(thisMonday.getDate() - 7);
+      const lastMondayStr = formatYMD(lastMonday);
+
+      // Sabtu minggu lalu
+      const lastSaturday = new Date(lastMonday);
+      lastSaturday.setDate(lastMonday.getDate() + 5);
+      const lastSaturdayStr = formatYMD(lastSaturday);
+
+      // 7 Hari Terakhir
+      const last7Days = new Date(now);
+      last7Days.setDate(now.getDate() - 6);
+      const last7DaysStr = formatYMD(last7Days);
 
       const { value: formValues } = await Swal.fire({
         title: 'Presensi Manual',
         html: `
-          <div class="space-y-4 text-left font-['Inter',system-ui,sans-serif] text-xs">
+          <div class="space-y-3.5 text-left font-['Inter',system-ui,sans-serif] text-xs">
+            <!-- Mode Tab Selector -->
+            <div class="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 text-xs font-semibold">
+              <button type="button" id="swal-tab-single" class="flex-1 py-1.5 px-2 rounded-lg text-center transition-all bg-white text-blue-900 shadow-xs font-bold cursor-pointer">
+                📅 1 Hari (Harian)
+              </button>
+              <button type="button" id="swal-tab-batch" class="flex-1 py-1.5 px-2 rounded-lg text-center transition-all text-slate-500 hover:text-slate-800 cursor-pointer">
+                🗓️ Seminggu / Rentang (Batch)
+              </button>
+            </div>
+
+            <!-- Pilih Karyawan -->
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">Pilih Karyawan</label>
               ${!canManageAbsensi ? `
@@ -344,6 +406,85 @@ const Absensi = () => {
               `}
             </div>
 
+            <!-- Section Mode 1: Harian (1 Hari) -->
+            <div id="swal-section-single" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Tanggal Presensi</label>
+                <input type="date" id="swal-tanggal" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs" value="${today}">
+              </div>
+            </div>
+
+            <!-- Section Mode 2: Batch (Rentang / Seminggu) -->
+            <div id="swal-section-batch" class="hidden space-y-3 p-3 bg-blue-50/70 rounded-xl border border-blue-200/80">
+              <div>
+                <label class="block text-[11px] font-bold text-blue-950 mb-1.5">Pilih Preset Cepat Rentang:</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                  <button type="button" id="swal-preset-this-week" class="px-2 py-1.5 bg-white border border-blue-200 text-blue-800 font-semibold rounded-lg text-[10px] hover:bg-blue-100 transition-colors cursor-pointer text-center">
+                    Minggu Ini (Sen-Sab)
+                  </button>
+                  <button type="button" id="swal-preset-last-week" class="px-2 py-1.5 bg-white border border-blue-200 text-blue-800 font-semibold rounded-lg text-[10px] hover:bg-blue-100 transition-colors cursor-pointer text-center">
+                    Minggu Lalu (Sen-Sab)
+                  </button>
+                  <button type="button" id="swal-preset-last-7" class="px-2 py-1.5 bg-white border border-blue-200 text-blue-800 font-semibold rounded-lg text-[10px] hover:bg-blue-100 transition-colors cursor-pointer text-center">
+                    7 Hari Terakhir
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">Dari Tanggal</label>
+                  <input type="date" id="swal-tanggal-mulai" value="${thisMondayStr}" class="w-full border border-gray-300 bg-white rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">Sampai Tanggal</label>
+                  <input type="date" id="swal-tanggal-selesai" value="${thisSaturdayStr}" class="w-full border border-gray-300 bg-white rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1.5">Hari Kerja yang Diisi:</label>
+                <div class="flex items-center justify-between gap-1 bg-white p-2 rounded-lg border border-gray-200 text-[11px]">
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-1" value="1" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Sen</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-2" value="2" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Sel</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-3" value="3" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Rab</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-4" value="4" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Kam</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-5" value="5" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Jum</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-6" value="6" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-slate-700">Sab</span>
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="swal-day-0" value="0" class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="font-semibold text-rose-600">Min</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="pt-0.5">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-700 font-medium">
+                  <input type="checkbox" id="swal-skip-existing" checked class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                  <span>Lewati tanggal yang sudah terisi presensi (Anti-duplikasi)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Shift Kerja -->
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">Shift Kerja</label>
               <select id="swal-shift" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold">
@@ -355,11 +496,7 @@ const Absensi = () => {
               </p>
             </div>
 
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Tanggal</label>
-              <input type="date" id="swal-tanggal" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs" value="${today}">
-            </div>
-
+            <!-- Jam Kerja -->
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Jam Masuk</label>
@@ -371,6 +508,7 @@ const Absensi = () => {
               </div>
             </div>
 
+            <!-- Status Kehadiran -->
             <div>
               <label class="block text-xs font-bold text-gray-700 mb-1">Status Kehadiran</label>
               <select id="swal-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
@@ -392,6 +530,48 @@ const Absensi = () => {
         showLoaderOnConfirm: true,
         customClass: { popup: 'rounded-2xl' },
         didOpen: () => {
+          let currentMode = 'single';
+          const tabSingle = document.getElementById('swal-tab-single');
+          const tabBatch = document.getElementById('swal-tab-batch');
+          const sectionSingle = document.getElementById('swal-section-single');
+          const sectionBatch = document.getElementById('swal-section-batch');
+
+          const switchMode = (mode) => {
+            currentMode = mode;
+            if (mode === 'single') {
+              tabSingle.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition-all bg-white text-blue-900 shadow-xs font-bold cursor-pointer';
+              tabBatch.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition-all text-slate-500 hover:text-slate-800 cursor-pointer';
+              sectionSingle.classList.remove('hidden');
+              sectionBatch.classList.add('hidden');
+            } else {
+              tabBatch.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition-all bg-white text-blue-900 shadow-xs font-bold cursor-pointer';
+              tabSingle.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition-all text-slate-500 hover:text-slate-800 cursor-pointer';
+              sectionSingle.classList.add('hidden');
+              sectionBatch.classList.remove('hidden');
+            }
+          };
+
+          if (tabSingle && tabBatch) {
+            tabSingle.addEventListener('click', () => switchMode('single'));
+            tabBatch.addEventListener('click', () => switchMode('batch'));
+          }
+
+          // Listener preset batch
+          const tMulai = document.getElementById('swal-tanggal-mulai');
+          const tSelesai = document.getElementById('swal-tanggal-selesai');
+          document.getElementById('swal-preset-this-week')?.addEventListener('click', () => {
+            if (tMulai) tMulai.value = thisMondayStr;
+            if (tSelesai) tSelesai.value = thisSaturdayStr;
+          });
+          document.getElementById('swal-preset-last-week')?.addEventListener('click', () => {
+            if (tMulai) tMulai.value = lastMondayStr;
+            if (tSelesai) tSelesai.value = lastSaturdayStr;
+          });
+          document.getElementById('swal-preset-last-7')?.addEventListener('click', () => {
+            if (tMulai) tMulai.value = last7DaysStr;
+            if (tSelesai) tSelesai.value = today;
+          });
+
           const karyawanSelect = document.getElementById('swal-karyawan');
           const shiftSelect = document.getElementById('swal-shift');
           const masukInput = document.getElementById('swal-masuk');
@@ -451,18 +631,13 @@ const Absensi = () => {
         },
         preConfirm: () => {
           const karyawan_id = document.getElementById('swal-karyawan')?.value || defaultSelectedId;
-          const shift = document.getElementById('swal-shift').value;
-          const tanggal = document.getElementById('swal-tanggal').value;
-          const jam_masuk = document.getElementById('swal-masuk').value;
-          const jam_keluar = document.getElementById('swal-keluar').value;
-          const status = document.getElementById('swal-status').value;
+          const shift = document.getElementById('swal-shift')?.value || 'Shift Pagi (08:00 - 17:00)';
+          const jam_masuk = document.getElementById('swal-masuk')?.value || '';
+          const jam_keluar = document.getElementById('swal-keluar')?.value || '';
+          const status = document.getElementById('swal-status')?.value || 'Hadir';
           
           if (!karyawan_id) {
             Swal.showValidationMessage('Karyawan harus dipilih');
-            return false;
-          }
-          if (!tanggal) {
-            Swal.showValidationMessage('Tanggal harus diisi');
             return false;
           }
           if (['Hadir', 'Terlambat'].includes(status) && !jam_masuk) {
@@ -478,43 +653,314 @@ const Absensi = () => {
             finalStatus = jam_masuk > cutOff ? 'Terlambat' : 'Hadir';
           }
 
+          const sectionBatch = document.getElementById('swal-section-batch');
+          const isBatchMode = sectionBatch && !sectionBatch.classList.contains('hidden');
+
+          if (!isBatchMode) {
+            const tanggal = document.getElementById('swal-tanggal')?.value;
+            if (!tanggal) {
+              Swal.showValidationMessage('Tanggal harus diisi');
+              return false;
+            }
+            return { mode: 'single', karyawan_id, shift, tanggal, jam_masuk, jam_keluar, status: finalStatus };
+          } else {
+            const tanggal_mulai = document.getElementById('swal-tanggal-mulai')?.value;
+            const tanggal_selesai = document.getElementById('swal-tanggal-selesai')?.value;
+            const skipExisting = document.getElementById('swal-skip-existing')?.checked ?? true;
+
+            if (!tanggal_mulai || !tanggal_selesai) {
+              Swal.showValidationMessage('Tanggal mulai dan selesai harus diisi');
+              return false;
+            }
+            if (tanggal_mulai > tanggal_selesai) {
+              Swal.showValidationMessage('Tanggal mulai tidak boleh melebihi tanggal selesai');
+              return false;
+            }
+
+            const selectedDays = [];
+            [1, 2, 3, 4, 5, 6, 0].forEach(d => {
+              const cb = document.getElementById(`swal-day-${d}`);
+              if (cb && cb.checked) selectedDays.push(d);
+            });
+
+            if (selectedDays.length === 0) {
+              Swal.showValidationMessage('Pilih minimal satu hari kerja');
+              return false;
+            }
+
+            return {
+              mode: 'batch',
+              karyawan_id,
+              shift,
+              tanggal_mulai,
+              tanggal_selesai,
+              hari_dipilih: selectedDays,
+              jam_masuk,
+              jam_keluar,
+              status: finalStatus,
+              overwrite_existing: !skipExisting
+            };
+          }
+        }
+      });
+
+      if (formValues) {
+        Swal.fire({ title: 'Menyimpan data presensi...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        if (formValues.mode === 'single') {
+          const savedAbsensi = await absensiService.addManual(formValues);
+          
+          let poinText = '';
+          if (poinService.isPoinEnabled()) {
+            if (formValues.status === 'Hadir') {
+              poinText = '<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)';
+              await poinService.addPoin(
+                formValues.karyawan_id, 
+                10, 
+                `Presensi Manual [${formValues.shift}] (Hadir - ${formValues.tanggal})`,
+                { absensiId: savedAbsensi?.id }
+              );
+            }
+            else if (formValues.status === 'Terlambat') {
+              poinText = '<br/><br/><span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)';
+              await poinService.addPoin(
+                formValues.karyawan_id, 
+                -5, 
+                `Presensi Manual [${formValues.shift}] (Terlambat - ${formValues.tanggal})`,
+                { absensiId: savedAbsensi?.id }
+              );
+            }
+          }
+
+          Swal.fire({ 
+            icon: 'success', 
+            title: 'Presensi Disimpan', 
+            html: `Presensi manual berhasil disimpan untuk tanggal <b>${formValues.tanggal}</b> [${formValues.shift}]${poinText}`, 
+            timer: 2500, 
+            showConfirmButton: false, 
+            customClass: { popup: 'rounded-2xl' } 
+          });
+        } else {
+          // Mode Batch / Seminggu
+          const batchRes = await absensiService.addManualBatch(formValues);
+
+          if (batchRes.allSkipped) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Tidak Ada Data Baru',
+              text: 'Semua tanggal yang dipilih sudah memiliki data presensi sebelumnya.',
+              customClass: { popup: 'rounded-2xl' }
+            });
+            fetchData();
+            return;
+          }
+
+          let poinText = '';
+          const totalProcessed = batchRes.insertedCount + batchRes.updatedCount;
+          if (poinService.isPoinEnabled()) {
+            const pointsPerDay = batchRes.statusEvaluated === 'Hadir' ? 10 : (batchRes.statusEvaluated === 'Terlambat' ? -5 : 0);
+            if (pointsPerDay !== 0) {
+              const allAffectedRows = [...(batchRes.insertedRows || []), ...(batchRes.updatedRows || [])];
+              for (const row of allAffectedRows) {
+                await poinService.addPoin(
+                  formValues.karyawan_id,
+                  pointsPerDay,
+                  `Presensi Manual [${batchRes.shiftLabel}] (${batchRes.statusEvaluated} - ${row.tanggal})`,
+                  { absensiId: row.id }
+                );
+              }
+              const totalPoints = pointsPerDay * allAffectedRows.length;
+              const pointColor = totalPoints > 0 ? '#f59e0b' : '#ef4444';
+              const sign = totalPoints > 0 ? '+' : '';
+              poinText = `<br/><br/><span style="color:${pointColor};font-weight:bold;">${sign}${totalPoints} Poin</span> (${totalProcessed} hari x ${sign}${pointsPerDay})`;
+            }
+          }
+
+          let skipInfo = '';
+          if (batchRes.skippedCount > 0) {
+            skipInfo = `<br/><span class="text-xs text-slate-500">(${batchRes.skippedCount} tanggal dilewati karena sudah ada data sebelumnya)</span>`;
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Presensi Mingguan Berhasil',
+            html: `Berhasil mencatat <b>${totalProcessed} hari presensi</b> untuk <b>${batchRes.userName}</b> [${batchRes.shiftLabel}]${skipInfo}${poinText}`,
+            timer: 3500,
+            showConfirmButton: false,
+            customClass: { popup: 'rounded-2xl' }
+          });
+        }
+
+        fetchData();
+      }
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: error.message, customClass: { popup: 'rounded-2xl' } });
+    }
+  };
+
+  const handleEdit = async (item) => {
+    if (!canManageAbsensi) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Hanya Admin, Owner, dan Developer yang berhak mengedit data presensi.',
+        customClass: { popup: 'rounded-2xl' }
+      });
+      return;
+    }
+
+    try {
+      Swal.fire({
+        title: 'Memuat data...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+      const staffList = await staffService.getStaffList();
+      Swal.close();
+
+      const selectedStaffId = item.karyawan_id || staffList.find(s => s.name?.toLowerCase().trim() === item.nama?.toLowerCase().trim())?.id || '';
+
+      const optionsHtml = staffList.map(s => {
+        const isSelected = s.id === selectedStaffId;
+        return `<option value="${s.id}" ${isSelected ? 'selected' : ''}>${s.name} (${s.role || 'Staff'})</option>`;
+      }).join('');
+
+      const isCurrentSiang = (item.shift || '').toLowerCase().includes('siang');
+      const defaultRuleInfo = isCurrentSiang
+        ? 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 13:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>'
+        : 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 08:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>';
+
+      const currentMasuk = item.jamMasuk !== '-' ? item.jamMasuk : (isCurrentSiang ? '13:00' : '08:00');
+      const currentKeluar = item.jamKeluar !== '-' ? item.jamKeluar : (isCurrentSiang ? '22:00' : '17:00');
+
+      const { value: formValues } = await Swal.fire({
+        title: 'Edit Presensi',
+        html: `
+          <div class="space-y-3.5 text-left font-['Inter',system-ui,sans-serif] text-xs">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Pilih Karyawan</label>
+              <select id="swal-edit-karyawan" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold">
+                ${optionsHtml}
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Tanggal Presensi</label>
+              <input type="date" id="swal-edit-tanggal" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs" value="${item.tanggal}">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Shift Kerja</label>
+              <select id="swal-edit-shift" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold">
+                <option value="Shift Pagi (08:00 - 17:00)" ${!isCurrentSiang ? 'selected' : ''}>🌅 Shift Pagi (08:00 - 17:00 WIB)</option>
+                <option value="Shift Siang (13:00 - 22:00)" ${isCurrentSiang ? 'selected' : ''}>🌇 Shift Siang (13:00 - 22:00 WIB)</option>
+              </select>
+              <p id="swal-edit-shift-rule" class="text-[10px] text-slate-500 mt-1 font-medium">
+                ${defaultRuleInfo}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Jam Masuk</label>
+                <input type="time" id="swal-edit-masuk" value="${currentMasuk}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Jam Keluar</label>
+                <input type="time" id="swal-edit-keluar" value="${currentKeluar}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Status Kehadiran</label>
+              <select id="swal-edit-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium">
+                <option value="Hadir" ${item.status === 'Hadir' ? 'selected' : ''}>Hadir</option>
+                <option value="Terlambat" ${item.status === 'Terlambat' ? 'selected' : ''}>Terlambat</option>
+                <option value="Sakit" ${item.status === 'Sakit' ? 'selected' : ''}>Sakit</option>
+                <option value="Izin" ${item.status === 'Izin' ? 'selected' : ''}>Izin</option>
+                <option value="Alpha" ${item.status === 'Alpha' ? 'selected' : ''}>Alpha</option>
+                <option value="Cuti" ${item.status === 'Cuti' ? 'selected' : ''}>Cuti</option>
+              </select>
+            </div>
+          </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Simpan Perubahan',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#004a8d',
+        showLoaderOnConfirm: true,
+        customClass: { popup: 'rounded-2xl' },
+        didOpen: () => {
+          const shiftSelect = document.getElementById('swal-edit-shift');
+          const masukInput = document.getElementById('swal-edit-masuk');
+          const keluarInput = document.getElementById('swal-edit-keluar');
+          const statusSelect = document.getElementById('swal-edit-status');
+          const ruleInfo = document.getElementById('swal-edit-shift-rule');
+
+          const updateStatusFromTime = () => {
+            if (!statusSelect || !masukInput || !shiftSelect) return;
+            const currentStatus = statusSelect.value;
+            if (['Hadir', 'Terlambat'].includes(currentStatus)) {
+              const isSiang = shiftSelect.value.includes('Siang');
+              const cutOff = isSiang ? '13:00' : '08:00';
+              if (masukInput.value > cutOff) {
+                statusSelect.value = 'Terlambat';
+              } else {
+                statusSelect.value = 'Hadir';
+              }
+            }
+          };
+
+          if (shiftSelect && masukInput && keluarInput) {
+            shiftSelect.addEventListener('change', (e) => {
+              const isSiang = e.target.value.includes('Siang');
+              if (isSiang) {
+                if (ruleInfo) ruleInfo.innerHTML = 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 13:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>';
+              } else {
+                if (ruleInfo) ruleInfo.innerHTML = 'Batas masuk tepat waktu: <b class="text-slate-800">Maksimal 08:00 WIB</b> <span class="text-rose-600 font-bold">(Tanpa Toleransi)</span>';
+              }
+              updateStatusFromTime();
+            });
+
+            masukInput.addEventListener('input', updateStatusFromTime);
+            masukInput.addEventListener('change', updateStatusFromTime);
+          }
+        },
+        preConfirm: () => {
+          const karyawan_id = document.getElementById('swal-edit-karyawan')?.value;
+          const shift = document.getElementById('swal-edit-shift')?.value;
+          const tanggal = document.getElementById('swal-edit-tanggal')?.value;
+          const jam_masuk = document.getElementById('swal-edit-masuk')?.value;
+          const jam_keluar = document.getElementById('swal-edit-keluar')?.value;
+          const status = document.getElementById('swal-edit-status')?.value;
+
+          if (!tanggal) {
+            Swal.showValidationMessage('Tanggal harus diisi');
+            return false;
+          }
+
+          let finalStatus = status;
+          if (['Hadir', 'Terlambat'].includes(finalStatus) && jam_masuk) {
+            const isSiang = shift.includes('Siang');
+            const cutOff = isSiang ? '13:00' : '08:00';
+            finalStatus = jam_masuk > cutOff ? 'Terlambat' : 'Hadir';
+          }
+
           return { karyawan_id, shift, tanggal, jam_masuk, jam_keluar, status: finalStatus };
         }
       });
 
       if (formValues) {
-        Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        const savedAbsensi = await absensiService.addManual(formValues);
-        
-        let poinText = '';
-        if (poinService.isPoinEnabled()) {
-          if (formValues.status === 'Hadir') {
-            poinText = '<br/><br/><span style="color:#f59e0b;font-weight:bold;">+10 Poin</span> (Hadir)';
-            await poinService.addPoin(
-              formValues.karyawan_id, 
-              10, 
-              `Presensi Manual [${formValues.shift}] (Hadir)`,
-              { absensiId: savedAbsensi?.id }
-            );
-          }
-          else if (formValues.status === 'Terlambat') {
-            poinText = '<br/><br/><span style="color:#ef4444;font-weight:bold;">-5 Poin</span> (Terlambat)';
-            await poinService.addPoin(
-              formValues.karyawan_id, 
-              -5, 
-              `Presensi Manual [${formValues.shift}] (Terlambat)`,
-              { absensiId: savedAbsensi?.id }
-            );
-          }
-        }
-
-        Swal.fire({ 
-          icon: 'success', 
-          title: 'Berhasil', 
-          html: `Presensi manual berhasil disimpan untuk <b>${formValues.shift}</b>${poinText}`, 
-          timer: 2000, 
-          showConfirmButton: false, 
-          customClass: { popup: 'rounded-2xl' } 
+        Swal.fire({ title: 'Menyimpan perubahan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        await absensiService.updateAbsensi(item.id, formValues);
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil Diperbarui',
+          text: `Data presensi tanggal ${formValues.tanggal} berhasil diperbarui.`,
+          timer: 2000,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-2xl' }
         });
         fetchData();
       }
@@ -734,7 +1180,19 @@ const Absensi = () => {
             <Thead>
               <Tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 <Th className="py-3 px-4">Nama Karyawan</Th>
-                <Th className="py-3 px-4">Tanggal</Th>
+                <Th 
+                  className="py-3 px-4 cursor-pointer select-none group transition-colors hover:bg-slate-100/70"
+                  onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  title="Klik untuk mengubah urutan tanggal"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Tanggal</span>
+                    <ArrowUpDown size={12} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                    <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 lowercase">
+                      {sortOrder === 'desc' ? 'terbaru' : 'terlama'}
+                    </span>
+                  </div>
+                </Th>
                 <Th className="py-3 px-4">Shift Kerja</Th>
                 <Th className="py-3 px-4">Jam Masuk</Th>
                 <Th className="py-3 px-4">Jam Keluar</Th>
@@ -745,9 +1203,9 @@ const Absensi = () => {
             </Thead>
             <Tbody>
               {loading ? (
-                <Tr><Td colSpan={8} className="text-center py-12 text-slate-400 text-xs">Memuat data presensi...</Td></Tr>
+                <Tr><Td colSpan={canManageAbsensi ? 8 : 7} className="text-center py-12 text-slate-400 text-xs">Memuat data presensi...</Td></Tr>
               ) : filteredData.length === 0 ? (
-                <Tr><Td colSpan={8} className="text-center py-12 text-slate-400 text-xs">
+                <Tr><Td colSpan={canManageAbsensi ? 8 : 7} className="text-center py-12 text-slate-400 text-xs">
                   <div className="flex flex-col items-center gap-2">
                     <UserCheck size={36} className="text-slate-300" />
                     <p className="font-bold text-slate-600">Tidak ada data presensi yang sesuai</p>
@@ -792,13 +1250,22 @@ const Absensi = () => {
                     </Td>
                     {canManageAbsensi && (
                       <Td className="py-3 px-4 text-right">
-                        <button 
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex cursor-pointer"
-                          title="Hapus Presensi"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button 
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex cursor-pointer"
+                            title="Edit Presensi"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex cursor-pointer"
+                            title="Hapus Presensi"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </Td>
                     )}
                   </Tr>

@@ -86,9 +86,11 @@ export const absensiService = {
       const { data, error } = await supabase
         .from('absensi')
         .select(`
-          id, tanggal, jam_masuk, jam_keluar, total_jam, status, shift,
+          id, karyawan_id, tanggal, jam_masuk, jam_keluar, total_jam, status, shift,
           users!absensi_karyawan_id_fkey ( name )
         `)
+        .order('tanggal', { ascending: false })
+        .order('jam_masuk', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
 
       if (error) {
@@ -97,9 +99,11 @@ export const absensiService = {
           const { data: fallbackData, error: errFallback } = await supabase
             .from('absensi')
             .select(`
-              id, tanggal, jam_masuk, jam_keluar, total_jam, status,
+              id, karyawan_id, tanggal, jam_masuk, jam_keluar, total_jam, status,
               users!absensi_karyawan_id_fkey ( name )
             `)
+            .order('tanggal', { ascending: false })
+            .order('jam_masuk', { ascending: false, nullsFirst: false })
             .order('id', { ascending: false });
 
           if (errFallback) throw errFallback;
@@ -115,9 +119,11 @@ export const absensiService = {
       const { data: fallbackData, error: errFallback } = await supabase
         .from('absensi')
         .select(`
-          id, tanggal, jam_masuk, jam_keluar, total_jam, status,
+          id, karyawan_id, tanggal, jam_masuk, jam_keluar, total_jam, status,
           users!absensi_karyawan_id_fkey ( name )
         `)
+        .order('tanggal', { ascending: false })
+        .order('jam_masuk', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
 
       if (errFallback) throw errFallback;
@@ -137,6 +143,7 @@ export const absensiService = {
 
       return {
         id: row.id,
+        karyawan_id: row.karyawan_id,
         nama: row.users?.name || '-',
         tanggal: row.tanggal,
         shift: normalizedShift,
@@ -416,6 +423,353 @@ export const absensiService = {
     } finally {
       inFlightManual.delete(lockKey);
     }
+  },
+
+  // Tambah Absensi Manual Batch (Seminggu / Rentang Tanggal)
+  async addManualBatch({
+    karyawan_id,
+    shift,
+    tanggal_mulai,
+    tanggal_selesai,
+    hari_dipilih = [1, 2, 3, 4, 5, 6], // Default Sen-Sab (0=Min, 1=Sen, ..., 6=Sab)
+    jam_masuk,
+    jam_keluar,
+    status = 'Hadir',
+    overwrite_existing = false
+  }) {
+    if (!karyawan_id) throw new Error('Karyawan harus dipilih.');
+    if (!tanggal_mulai || !tanggal_selesai) throw new Error('Tanggal mulai dan tanggal selesai harus diisi.');
+    if (tanggal_mulai > tanggal_selesai) throw new Error('Tanggal mulai tidak boleh melebihi tanggal selesai.');
+
+    const lockKey = `batch_${karyawan_id}_${tanggal_mulai}_${tanggal_selesai}`;
+    if (inFlightManual.has(lockKey)) {
+      throw new Error('Penyimpanan data presensi mingguan sedang berlangsung.');
+    }
+    inFlightManual.add(lockKey);
+
+    try {
+      // 1. Generate tanggal target berdasarkan rentang dan hari yang dicentang
+      const targetDates = [];
+      const startParts = tanggal_mulai.split('-').map(Number);
+      const endParts = tanggal_selesai.split('-').map(Number);
+      const curr = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+      const end = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+
+      const diffDays = Math.round((end - curr) / (1000 * 60 * 60 * 24));
+      if (diffDays > 31) {
+        throw new Error('Rentang tanggal maksimal 31 hari per proses input.');
+      }
+
+      while (curr <= end) {
+        const dayOfWeek = curr.getUTCDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
+        if (hari_dipilih.includes(dayOfWeek)) {
+          const y = curr.getUTCFullYear();
+          const m = String(curr.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(curr.getUTCDate()).padStart(2, '0');
+          targetDates.push(`${y}-${m}-${d}`);
+        }
+        curr.setUTCDate(curr.getUTCDate() + 1);
+      }
+
+      if (targetDates.length === 0) {
+        throw new Error('Tidak ada tanggal yang cocok dengan hari kerja yang dipilih dalam rentang ini.');
+      }
+
+      // 2. Ambil data presensi yang sudah ada untuk karyawan ini pada rentang tersebut
+      const { data: existingRecords, error: errExist } = await supabase
+        .from('absensi')
+        .select('id, tanggal')
+        .eq('karyawan_id', karyawan_id)
+        .gte('tanggal', tanggal_mulai)
+        .lte('tanggal', tanggal_selesai);
+
+      if (errExist) throw errExist;
+
+      const existingMap = new Map((existingRecords || []).map(r => [r.tanggal, r.id]));
+
+      // 3. Evaluasi jam, total_jam, dan shift
+      let total_jam = 0;
+      if (jam_masuk && jam_keluar) {
+        const masukParts = jam_masuk.split(':');
+        const keluarParts = jam_keluar.split(':');
+        const masukMins = parseInt(masukParts[0], 10) * 60 + parseInt(masukParts[1], 10);
+        const keluarMins = parseInt(keluarParts[0], 10) * 60 + parseInt(keluarParts[1], 10);
+        let diffMins = keluarMins - masukMins;
+        if (diffMins < 0) diffMins += 24 * 60;
+        total_jam = Math.max(0, Math.round(diffMins / 60));
+      }
+
+      const rawShift = shift || determineShiftFromTime(jam_masuk || '08:00');
+      const isSiang = rawShift.toLowerCase().includes('siang');
+      const shiftLabel = isSiang ? 'Shift Siang (13:00 - 22:00)' : 'Shift Pagi (08:00 - 17:00)';
+
+      let statusEvaluated = status;
+      if (['Hadir', 'Terlambat'].includes(statusEvaluated) && jam_masuk) {
+        const batasStr = isSiang ? '13:00' : '08:00';
+        statusEvaluated = jam_masuk > batasStr ? 'Terlambat' : 'Hadir';
+      }
+
+      // 4. Pisahkan tanggal insert vs update vs skip
+      const datesToInsert = [];
+      const datesToUpdate = [];
+      const datesSkipped = [];
+
+      for (const d of targetDates) {
+        if (existingMap.has(d)) {
+          if (overwrite_existing) {
+            datesToUpdate.push({ id: existingMap.get(d), tanggal: d });
+          } else {
+            datesSkipped.push(d);
+          }
+        } else {
+          datesToInsert.push(d);
+        }
+      }
+
+      if (datesToInsert.length === 0 && datesToUpdate.length === 0) {
+        return {
+          totalTarget: targetDates.length,
+          insertedCount: 0,
+          updatedCount: 0,
+          skippedCount: datesSkipped.length,
+          skippedDates: datesSkipped,
+          insertedRows: [],
+          updatedRows: [],
+          statusEvaluated,
+          shiftLabel,
+          allSkipped: true,
+          message: 'Semua tanggal yang dipilih sudah memiliki data presensi sebelumnya.'
+        };
+      }
+
+      const insertedRows = [];
+      const shiftMap = getShiftMap();
+
+      // Eksekusi insert untuk tanggal-tanggal baru
+      if (datesToInsert.length > 0) {
+        const payloads = datesToInsert.map(tgl => ({
+          karyawan_id,
+          tanggal: tgl,
+          jam_masuk: jam_masuk || null,
+          jam_keluar: jam_keluar || null,
+          total_jam,
+          status: statusEvaluated,
+          shift: shiftLabel
+        }));
+
+        let res = await supabase.from('absensi').insert(payloads).select();
+        if (res.error && res.error.message?.includes('shift')) {
+          const payloadsNoShift = payloads.map(({ shift: _s, ...rest }) => rest);
+          const fallbackRes = await supabase.from('absensi').insert(payloadsNoShift).select();
+          if (fallbackRes.error) throw fallbackRes.error;
+          res = fallbackRes;
+        } else if (res.error) {
+          throw res.error;
+        }
+
+        if (res.data) {
+          insertedRows.push(...res.data);
+          res.data.forEach(item => {
+            shiftMap[item.id] = shiftLabel;
+          });
+        }
+      }
+
+      // Eksekusi update jika overwrite_existing diaktifkan
+      const updatedRows = [];
+      if (datesToUpdate.length > 0) {
+        for (const item of datesToUpdate) {
+          const updatePayload = {
+            jam_masuk: jam_masuk || null,
+            jam_keluar: jam_keluar || null,
+            total_jam,
+            status: statusEvaluated,
+            shift: shiftLabel
+          };
+          let upRes = await supabase.from('absensi').update(updatePayload).eq('id', item.id).select();
+          if (upRes.error && upRes.error.message?.includes('shift')) {
+            const { shift: _s, ...payloadNoShift } = updatePayload;
+            upRes = await supabase.from('absensi').update(payloadNoShift).eq('id', item.id).select();
+          }
+          if (upRes.error) throw upRes.error;
+          if (upRes.data && upRes.data[0]) {
+            updatedRows.push(upRes.data[0]);
+            shiftMap[item.id] = shiftLabel;
+          }
+        }
+      }
+
+      saveShiftMap(shiftMap);
+
+      // Ambil nama user untuk log aktivitas
+      const { data: userData } = await supabase.from('users').select('name').eq('id', karyawan_id).single();
+      const userName = userData?.name || 'Karyawan';
+
+      const totalProcessed = insertedRows.length + updatedRows.length;
+
+      // Log ke tabel aktivitas
+      await aktivitasService.logActivity({
+        user_id: karyawan_id,
+        absensi_id: insertedRows[0]?.id || updatedRows[0]?.id || null,
+        title: 'Presensi Manual Mingguan / Rentang',
+        description: `Presensi manual batch (${totalProcessed} hari) disimpan untuk ${userName} [${shiftLabel}] (${tanggal_mulai} s/d ${tanggal_selesai})`,
+        type: 'system'
+      });
+
+      // Dispatch event agar notifikasi & dashboard otomatis update
+      window.dispatchEvent(new Event('absensiUpdated'));
+
+      return {
+        totalTarget: targetDates.length,
+        insertedCount: insertedRows.length,
+        updatedCount: updatedRows.length,
+        skippedCount: datesSkipped.length,
+        skippedDates: datesSkipped,
+        insertedRows,
+        updatedRows,
+        statusEvaluated,
+        shiftLabel,
+        userName,
+        allSkipped: false
+      };
+    } finally {
+      inFlightManual.delete(lockKey);
+    }
+  },
+
+  // Update Data Presensi
+  async updateAbsensi(id, data) {
+    if (!id) throw new Error('ID Presensi tidak valid.');
+
+    let total_jam = 0;
+    if (data.jam_masuk && data.jam_keluar) {
+      const masukParts = data.jam_masuk.split(':');
+      const keluarParts = data.jam_keluar.split(':');
+      const masukMins = parseInt(masukParts[0], 10) * 60 + parseInt(masukParts[1], 10);
+      const keluarMins = parseInt(keluarParts[0], 10) * 60 + parseInt(keluarParts[1], 10);
+      let diffMins = keluarMins - masukMins;
+      if (diffMins < 0) diffMins += 24 * 60;
+      total_jam = Math.max(0, Math.round(diffMins / 60));
+    }
+
+    const rawShift = data.shift || determineShiftFromTime(data.jam_masuk || '08:00');
+    const isSiang = rawShift.toLowerCase().includes('siang');
+    const shiftLabel = isSiang ? 'Shift Siang (13:00 - 22:00)' : 'Shift Pagi (08:00 - 17:00)';
+
+    let statusEvaluated = data.status;
+    if (['Hadir', 'Terlambat'].includes(statusEvaluated) && data.jam_masuk) {
+      const batasStr = isSiang ? '13:00' : '08:00';
+      statusEvaluated = data.jam_masuk > batasStr ? 'Terlambat' : 'Hadir';
+    }
+
+    const payload = {
+      tanggal: data.tanggal,
+      jam_masuk: data.jam_masuk || null,
+      jam_keluar: data.jam_keluar || null,
+      total_jam,
+      status: statusEvaluated,
+      shift: shiftLabel,
+    };
+
+    if (data.karyawan_id) {
+      payload.karyawan_id = data.karyawan_id;
+    }
+
+    let updatedData = null;
+    const res = await supabase
+      .from('absensi')
+      .update(payload)
+      .eq('id', id)
+      .select(`
+        id, karyawan_id, tanggal, jam_masuk, jam_keluar, total_jam, status, shift,
+        users!absensi_karyawan_id_fkey ( name )
+      `)
+      .single();
+
+    if (res.error && res.error.message?.includes('shift')) {
+      const { shift: _unusedShift, ...payloadNoShift } = payload;
+      const fallbackRes = await supabase
+        .from('absensi')
+        .update(payloadNoShift)
+        .eq('id', id)
+        .select(`
+          id, karyawan_id, tanggal, jam_masuk, jam_keluar, total_jam, status,
+          users!absensi_karyawan_id_fkey ( name )
+        `)
+        .single();
+      if (fallbackRes.error) throw fallbackRes.error;
+      updatedData = fallbackRes.data;
+    } else if (res.error) {
+      throw res.error;
+    } else {
+      updatedData = res.data;
+    }
+
+    // Perbarui cache shift
+    const shiftMap = getShiftMap();
+    shiftMap[id] = shiftLabel;
+    saveShiftMap(shiftMap);
+
+    // Sinkronisasi riwayat poin
+    const targetUserId = updatedData?.karyawan_id || data.karyawan_id;
+    if (targetUserId) {
+      try {
+        const { data: existingPoin } = await supabase
+          .from('riwayat_poin')
+          .select('id')
+          .eq('absensi_id', id);
+
+        const pointsAmount = statusEvaluated === 'Hadir' ? 10 : (statusEvaluated === 'Terlambat' ? -5 : 0);
+        const poinDesc = statusEvaluated === 'Hadir'
+          ? `Presensi [${shiftLabel}] (Hadir - ${data.tanggal})`
+          : (statusEvaluated === 'Terlambat' ? `Presensi [${shiftLabel}] (Terlambat - ${data.tanggal})` : null);
+
+        if (existingPoin && existingPoin.length > 0) {
+          if (pointsAmount !== 0) {
+            await supabase
+              .from('riwayat_poin')
+              .update({
+                jumlah_poin: pointsAmount,
+                keterangan: poinDesc,
+                user_id: targetUserId
+              })
+              .eq('absensi_id', id);
+          } else {
+            await supabase
+              .from('riwayat_poin')
+              .delete()
+              .eq('absensi_id', id);
+          }
+        } else if (pointsAmount !== 0) {
+          await supabase
+            .from('riwayat_poin')
+            .insert({
+              user_id: targetUserId,
+              absensi_id: id,
+              jumlah_poin: pointsAmount,
+              keterangan: poinDesc
+            });
+        }
+      } catch (errPoin) {
+        console.warn('Gagal sinkronisasi poin saat update absensi:', errPoin);
+      }
+    }
+
+    const employeeName = updatedData?.users?.name || 'Karyawan';
+
+    // Log ke tabel aktivitas
+    await aktivitasService.logActivity({
+      user_id: targetUserId,
+      absensi_id: id,
+      title: 'Presensi Diperbarui',
+      description: `Data presensi ID #${id} (${data.tanggal}) diperbarui untuk ${employeeName} [${shiftLabel}] (Status: ${statusEvaluated})`,
+      type: 'system'
+    });
+
+    // Dispatch event agar Header & Dashboard otomatis update
+    window.dispatchEvent(new Event('absensiUpdated'));
+
+    return { ...updatedData, shift: shiftLabel };
   },
 
   // Hapus Data Absensi (Khusus Admin/Developer)

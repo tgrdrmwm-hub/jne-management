@@ -10,26 +10,26 @@ export const Table = ({ children, className }) => (
   </div>
 );
 
-export const Thead = ({ children, className }) => (
-  <thead className={clsx("bg-slate-50/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10", className)}>
+export const Thead = ({ children, className, ...props }) => (
+  <thead className={clsx("bg-slate-50/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10", className)} {...props}>
     {children}
   </thead>
 );
 
-export const Tbody = ({ children, className }) => (
-  <tbody className={clsx("bg-white divide-y divide-gray-50", className)}>
+export const Tbody = ({ children, className, ...props }) => (
+  <tbody className={clsx("bg-white divide-y divide-gray-50", className)} {...props}>
     {children}
   </tbody>
 );
 
-export const Tr = ({ children, className }) => (
-  <tr className={clsx("hover:bg-slate-50/50 transition-colors duration-150", className)}>
+export const Tr = ({ children, className, ...props }) => (
+  <tr className={clsx("hover:bg-slate-50/50 transition-colors duration-150", className)} {...props}>
     {children}
   </tr>
 );
 
-export const Th = ({ children, className }) => (
-  <th className={clsx("px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider", className)}>
+export const Th = ({ children, className, ...props }) => (
+  <th className={clsx("px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider", className)} {...props}>
     {children}
   </th>
 );
